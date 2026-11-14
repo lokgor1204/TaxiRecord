@@ -230,7 +230,7 @@
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
             <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，更新網頁程式碼絕不影響現有紀錄。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.5.0</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.5.1</p>
         </div>
     </footer>
 
@@ -604,6 +604,25 @@
                 const matchShift = (filterShift === 'ALL') || (rec.shift === filterShift);
                 const matchDay = (filterDay === 'ALL') || (rec.days && rec.days.includes(filterDay));
                 return matchKeyword && matchShift && matchDay;
+            });
+
+            // 排序邏輯：優先按正更排到替更 (正更在前)，次排序按姓名 A-Z (localeCompare 支援中文及英文拼音)
+            filtered.sort((a, b) => {
+                const typeA = a.driverType || '正更';
+                const typeB = b.driverType || '正更';
+                
+                // 正更(0) 優先於 替更(1)
+                const rankA = typeA === '正更' ? 0 : 1;
+                const rankB = typeB === '正更' ? 0 : 1;
+
+                if (rankA !== rankB) {
+                    return rankA - rankB;
+                }
+
+                // 次排序：姓名 A-Z
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                return nameA.localeCompare(nameB, 'zh-HK');
             });
 
             if (recordCountBadge) {
