@@ -34,7 +34,7 @@
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
                         <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.8</span>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.9</span>
                     </div>
                     <!-- 即時連線狀態顯示 -->
                     <div id="cloudStatusIndicator" class="flex items-center gap-1.5 text-[11px] text-amber-300 font-medium mt-0.5">
@@ -446,14 +446,14 @@
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
             <p>的士編更雲端系統 • 請記得每次修改後點擊右上角「立即儲存並同步給所有人」。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.9.8</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.9.9</p>
         </div>
     </footer>
 
     <!-- Firebase SDK 與主程式 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -473,8 +473,6 @@
         let filterDay = 'ALL';
         let filterShift = 'ALL';
         let dbFilterType = 'ALL';
-
-        const DAYS_ORDER = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
 
         function updateCloudStatus(status, text) {
             const indicator = document.getElementById('cloudStatusIndicator');
@@ -621,9 +619,9 @@
 
         function loadFromLocalStorage() {
             try {
-                const localRoster = localStorage.getItem('taxi_roster_records_v1.9.8');
-                const localNotes = localStorage.getItem('taxi_notes_records_v1.9.8');
-                const localDrivers = localStorage.getItem('taxi_drivers_db_v1.9.8');
+                const localRoster = localStorage.getItem('taxi_roster_records_v1.9.9');
+                const localNotes = localStorage.getItem('taxi_notes_records_v1.9.9');
+                const localDrivers = localStorage.getItem('taxi_drivers_db_v1.9.9');
                 
                 if (localRoster) rosterRecords = JSON.parse(localRoster);
                 if (localNotes) notesRecords = JSON.parse(localNotes);
@@ -635,9 +633,9 @@
 
         function saveToLocalStorage() {
             try {
-                localStorage.setItem('taxi_roster_records_v1.9.8', JSON.stringify(rosterRecords));
-                localStorage.setItem('taxi_notes_records_v1.9.8', JSON.stringify(notesRecords));
-                localStorage.setItem('taxi_drivers_db_v1.9.8', JSON.stringify(driversDb));
+                localStorage.setItem('taxi_roster_records_v1.9.9', JSON.stringify(rosterRecords));
+                localStorage.setItem('taxi_notes_records_v1.9.9', JSON.stringify(notesRecords));
+                localStorage.setItem('taxi_drivers_db_v1.9.9', JSON.stringify(driversDb));
             } catch (e) {
                 console.error("Local storage save error:", e);
             }
@@ -690,11 +688,13 @@
         // 更新自動建議 Datalist 與計數
         window.updateDriverSuggestions = function() {
             const datalist = document.getElementById('allDriverSuggestions');
-            if (!datalist) return;
-            datalist.innerHTML = driversDb.map(d => `<option value="${escapeHTML(d.name)}">`).join('');
-            
+            if (datalist) {
+                datalist.innerHTML = driversDb.map(d => `<option value="${escapeHTML(d.name)}">`).join('');
+            }
             const navBadge = document.getElementById('navDriverCount');
-            if (navBadge) navBadge.textContent = driversDb.length;
+            if (navBadge) {
+                navBadge.textContent = driversDb.length;
+            }
         };
 
         // 自動從司機資料庫帶入電話與分類
@@ -856,7 +856,7 @@
 
             let filtered = rosterRecords.filter(r => {
                 if (filterShift !== 'ALL' && r.shiftType !== filterShift) return false;
-                if (filterDay !== 'ALL' && !r.workDays.includes(filterDay)) return false;
+                if (filterDay !== 'ALL' && (!Array.isArray(r.workDays) || !r.workDays.includes(filterDay))) return false;
                 if (search && !r.name.toLowerCase().includes(search) && !r.phone.includes(search)) return false;
                 return true;
             });
@@ -895,7 +895,7 @@
                         : '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-100 text-indigo-900 whitespace-nowrap"><i class="fa-solid fa-moon"></i> 夜更</span>';
 
                     const starIconClass = r.isStarred ? 'fa-solid fa-star text-amber-400 text-base' : 'fa-regular fa-star text-slate-300 text-base hover:text-amber-400';
-                    const daysStr = r.workDays.join('、');
+                    const daysStr = Array.isArray(r.workDays) ? r.workDays.join('、') : '';
 
                     return `
                         <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
@@ -935,7 +935,7 @@
                         : '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-100 text-indigo-900 whitespace-nowrap"><i class="fa-solid fa-moon"></i> 夜更</span>';
 
                     const starIconClass = r.isStarred ? 'fa-solid fa-star text-amber-400 text-base' : 'fa-regular fa-star text-slate-300 text-base hover:text-amber-400';
-                    const daysStr = r.workDays.join(', ');
+                    const daysStr = Array.isArray(r.workDays) ? r.workDays.join(', ') : '';
 
                     return `
                         <tr class="hover:bg-slate-50/80 transition">
@@ -1051,7 +1051,6 @@
                 expiryDt.setDate(expiryDt.getDate() + 7);
                 expiryDt.setHours(0, 0, 0, 0);
 
-                // 若今天已經超過或等於過期日（即結束日期 + 7日後），則過濾掉
                 return today < expiryDt;
             });
 
@@ -1068,8 +1067,8 @@
 
             if (badgeEl) badgeEl.textContent = notesRecords.length;
             if (emptyEl) {
-                if (notesRecords.length === 0) emptyEl.classList.add('hidden');
-                else emptyEl.classList.remove('hidden');
+                if (notesRecords.length === 0) emptyEl.classList.remove('hidden');
+                else emptyEl.classList.add('hidden');
             }
 
             if (!listEl) return;
@@ -1125,7 +1124,6 @@
                 
                 driversDb = driversDb.map(d => d.id === editingId ? { ...d, name, phone, driverType } : d);
 
-                // 同步更新排班表
                 if (syncRoster && oldName) {
                     rosterRecords = rosterRecords.map(r => {
                         if (r.name === oldName) {
@@ -1219,6 +1217,7 @@
         };
 
         window.renderDriversDB = function() {
+            updateDriverSuggestions(); // 確保導覽列徽章實時更新
             const search = (document.getElementById('dbSearchInput')?.value || '').toLowerCase();
             const mobileList = document.getElementById('mobileDbList');
             const desktopBody = document.getElementById('desktopDbBody');
@@ -1292,7 +1291,7 @@
                                     <a href="${getWhatsAppUrl(d.phone)}" target="_blank" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs font-bold transition flex items-center gap-1"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
                                     <button onclick="editDriverDB('${d.id}')" class="px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 text-xs font-bold transition">修改</button>
                                     <button onclick="deleteDriverDB('${d.id}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold transition">刪除</button>
-                                </div
+                                </div>
                             </td>
                         </tr>
                     `;
