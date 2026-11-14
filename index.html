@@ -352,7 +352,13 @@
                 }, (error) => {
                     console.error("監聽雲端資料錯誤:", error);
                     updateConnectionStatus('error', '雲端讀取受阻');
-                    showToast('讀取雲端資料失敗：' + error.message, 'error');
+                    if (error.code === 'permission-denied') {
+                        showToast('讀取受阻：權限不足，請確認 Firebase Rules 已設為 allow read, write: if true;', 'error');
+                    } else if (error.code === 'not-found') {
+                        showToast('提示：雲端尚無資料，將於首次儲存時自動建立', 'info');
+                    } else {
+                        showToast('讀取雲端資料失敗 (' + error.code + ')：' + error.message, 'error');
+                    }
                 });
 
             } catch (error) {
