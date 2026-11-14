@@ -22,11 +22,14 @@
                 </div>
                 <div>
                     <h1 class="text-base sm:text-lg font-bold tracking-tight leading-tight">的士編更雲端系統</h1>
-                    <p class="text-xs text-slate-400">團隊共用排班表 (v1.7.0)</p>
+                    <p class="text-xs text-slate-400">團隊共用排班表 (v1.7.4)</p>
                 </div>
             </div>
 
             <div class="flex items-center gap-2 ml-auto">
+                <button id="config-api-btn" onclick="openApiConfigModal()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-medium transition-all" title="設定 Firebase API Key">
+                    🔑 金鑰設定
+                </button>
                 <div id="cloud-status-badge" class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-medium text-amber-700 shadow-sm">
                     <span id="cloud-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                     <span id="cloud-status-text">連線中...</span>
@@ -37,6 +40,27 @@
             </div>
         </div>
     </header>
+
+    <!-- API Key 設定彈窗 -->
+    <div id="api-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl border border-slate-200 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-slate-900 text-base">🔑 連接真實 Firebase 雲端</h3>
+                <button onclick="closeApiConfigModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                請貼上你 Firebase 專案（<code class="bg-slate-100 px-1 rounded">taxirecord123</code>）嘅 <strong>apiKey</strong>（以 <code class="bg-slate-100 px-1 rounded">AIzaSy...</code> 開頭），即可解除「離線模式」並開啟即時雲端同步：
+            </p>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Firebase API Key</label>
+                <input type="text" id="input-api-key" placeholder="AIzaSy..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-red-500">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeApiConfigModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">取消</button>
+                <button onclick="saveApiKeyAndReconnect()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow">儲存並連線</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 頁籤導航 -->
     <nav class="bg-white border-b border-slate-200 shadow-sm sticky top-[61px] z-30">
@@ -239,17 +263,50 @@
 
     <!-- Firebase SDKs & App logic -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { initializeApp, getApps, deleteApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyD-PlaceholderKeyForDemoPurposesOnly123456",
-            authDomain: "taxirecord123.firebaseapp.com",
-            projectId: "taxirecord123",
-            storageBucket: "taxirecord123.appspot.com",
-            messagingSenderId: "331818290264",
-            appId: "1:331818290264:web:324567890abcdef"
+        // 支援動態讀取環境變數或 URL 參數中的 apiKey，避免使用無效佔位符導致連線失敗
+        const urlParams = new URLSearchParams(window.location.search);
+        let activeApiKey = urlParams.get('apiKey') || (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config).apiKey : "");
+
+        function getFirebaseConfig() {
+            return {
+                apiKey: activeApiKey,
+                authDomain: "taxirecord123.firebaseapp.com",
+                projectId: "taxirecord123",
+                storageBucket: "taxirecord123.appspot.com",
+                messagingSenderId: "331818290264",
+                appId: "1:331818290264:web:324567890abcdef"
+            };
+        }
+
+        let db = null;
+        let auth = null;
+        let currentEditingId = null;
+        let activeFilterDays = [];
+        let isCloudLoaded = false;
+
+        window.openApiConfigModal = function() {
+            document.getElementById('input-api-key').value = activeApiKey || '';
+            document.getElementById('api-modal').classList.remove('hidden');
+        };
+
+        window.closeApiConfigModal = function() {
+            document.getElementById('api-modal').classList.add('hidden');
+        };
+
+        window.saveApiKeyAndReconnect = async function() {
+            const val = document.getElementById('input-api-key').value.trim();
+            if (!val) {
+                showToast('請輸入有效嘅 API Key', 'error');
+                return;
+            }
+            activeApiKey = val;
+            closeApiConfigModal();
+            updateCloudStatus(false, '重新連線中...');
+            await initFirebase();
         };
 
         let db = null;
@@ -296,8 +353,18 @@
         }
 
         async function initFirebase() {
+            if (!activeApiKey || activeApiKey.includes("Placeholder")) {
+                updateCloudStatus(false, '離線模式 (未設金鑰)');
+                return;
+            }
             try {
-                const app = initializeApp(firebaseConfig);
+                // 若已有舊實例先清除以便重新初始化
+                const existingApps = getApps();
+                for (const app of existingApps) {
+                    await deleteApp(app);
+                }
+
+                const app = initializeApp(getFirebaseConfig());
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
@@ -313,7 +380,8 @@
                     updateCloudStatus(true, '雲端已連線 (即時同步)');
                 } catch (authErr) {
                     console.warn("Auth warning:", authErr);
-                    updateCloudStatus(false, '離線預覽模式');
+                    updateCloudStatus(false, '金鑰無效或未啟用匿名登入');
+                    showToast('連線失敗：請確認 API Key 正確及已開啟匿名登入', 'error');
                 }
             } catch (error) {
                 console.error("Firebase error:", error);
