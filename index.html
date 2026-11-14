@@ -240,8 +240,8 @@
     <!-- Firebase SDKs & App logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyD-PlaceholderKeyForDemoPurposesOnly123456",
@@ -256,6 +256,7 @@
         let auth = null;
         let currentEditingId = null;
         let activeFilterDays = [];
+        let isCloudLoaded = false;
 
         let shiftData = [
             { id: '1', name: '陳大文', phone: '91234567', type: 'regular', shift: 'morning', days: ['1','2','3','4','5'] },
@@ -300,19 +301,50 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
-                // Try anonymous sign in; if API key is mock/invalid in preview sandbox, catch and run in local mode
+                // 監聽雲端認證與建立實時同步監聽
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        setupRealtimeSync();
+                    }
+                });
+
                 try {
                     await signInAnonymously(auth);
-                    await loadFromCloud();
-                    updateCloudStatus(true, '雲端已連線');
+                    updateCloudStatus(true, '雲端已連線 (即時同步)');
                 } catch (authErr) {
-                    console.warn("Auth placeholder detected or offline preview:", authErr);
-                    updateCloudStatus(false, '離線預覽模式 (本地運行)');
+                    console.warn("Auth warning:", authErr);
+                    updateCloudStatus(false, '離線預覽模式');
                 }
             } catch (error) {
                 console.error("Firebase error:", error);
                 updateCloudStatus(false, '離線模式');
             }
+        }
+
+        function setupRealtimeSync() {
+            if (!db) return;
+            const docRef = doc(db, "taxidata", "main_roster_v173");
+            
+            // 使用 onSnapshot 實現所有人實時同步
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.shiftData) shiftData = data.shiftData;
+                    if (data.leaveData) leaveData = data.leaveData;
+                    if (data.leaveArchive) leaveArchive = data.leaveArchive;
+                    if (data.priorityData) priorityData = data.priorityData;
+                    if (data.priorityArchive) priorityArchive = data.priorityArchive;
+                    checkAutoArchive();
+                    renderAll();
+                    if (!isCloudLoaded) {
+                        showToast('已成功從雲端同步最新排班資料！', 'success');
+                        isCloudLoaded = true;
+                    }
+                }
+            }, (error) => {
+                console.error("Cloud sync error:", error);
+                updateCloudStatus(false, '雲端讀取受阻');
+            });
         }
 
         function updateCloudStatus(connected, text) {
@@ -329,21 +361,6 @@
             }
         }
 
-        async function loadFromCloud() {
-            if (!db) return;
-            const docRef = doc(db, "taxidata", "main_roster_v171");
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data.shiftData) shiftData = data.shiftData;
-                if (data.leaveData) leaveData = data.leaveData;
-                if (data.leaveArchive) leaveArchive = data.leaveArchive;
-                if (data.priorityData) priorityData = data.priorityData;
-                if (data.priorityArchive) priorityArchive = data.priorityArchive;
-                checkAutoArchive();
-            }
-        }
-
         async function saveToCloud() {
             if (!db) {
                 showToast('未連線至雲端', 'error');
@@ -351,9 +368,16 @@
             }
             try {
                 checkAutoArchive();
-                const docRef = doc(db, "taxidata", "main_roster_v171");
-                await setDoc(docRef, { shiftData, leaveData, leaveArchive, priorityData, priorityArchive, updatedAt: new Date().toISOString() });
-                showToast('雲端儲存同步成功！', 'success');
+                const docRef = doc(db, "taxidata", "main_roster_v173");
+                await setDoc(docRef, { 
+                    shiftData, 
+                    leaveData, 
+                    leaveArchive, 
+                    priorityData, 
+                    priorityArchive, 
+                    updatedAt: new Date().toISOString() 
+                });
+                showToast('雲端儲存同步成功！所有人即時更新', 'success');
             } catch (e) {
                 showToast('儲存失敗：' + e.message, 'error');
             }
