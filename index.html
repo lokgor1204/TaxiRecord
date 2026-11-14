@@ -34,9 +34,13 @@
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
                         <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.6</span>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.7</span>
                     </div>
-                    <p class="text-[11px] text-slate-400 truncate">手動雲端儲存同步 • 備註交接 • 司機資料庫</p>
+                    <!-- 即時連線狀態顯示 -->
+                    <div id="cloudStatusIndicator" class="flex items-center gap-1.5 text-[11px] text-amber-300 font-medium mt-0.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="cloudStatusText">正在連接雲端資料庫...</span>
+                    </div>
                 </div>
             </div>
 
@@ -465,6 +469,23 @@
 
         const DAYS_ORDER = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
 
+        function updateCloudStatus(status, text) {
+            const indicator = document.getElementById('cloudStatusIndicator');
+            const textEl = document.getElementById('cloudStatusText');
+            if (!indicator || !textEl) return;
+
+            if (status === 'connecting') {
+                indicator.className = "flex items-center gap-1.5 text-[11px] text-amber-300 font-medium mt-0.5";
+                indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> <span id="cloudStatusText">' + text + '</span>';
+            } else if (status === 'connected') {
+                indicator.className = "flex items-center gap-1.5 text-[11px] text-emerald-300 font-medium mt-0.5";
+                indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> <span id="cloudStatusText">' + text + '</span>';
+            } else if (status === 'error') {
+                indicator.className = "flex items-center gap-1.5 text-[11px] text-rose-300 font-medium mt-0.5";
+                indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> <span id="cloudStatusText">' + text + '</span>';
+            }
+        }
+
         function escapeHTML(str) {
             if (!str) return '';
             return String(str)
@@ -535,6 +556,7 @@
 
         async function initFirebaseAndLoad() {
             try {
+                updateCloudStatus('connecting', '正在連接 Firebase 雲端...');
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -564,14 +586,17 @@
                 }
 
                 if (loadedCloud) {
+                    updateCloudStatus('connected', '雲端已連線 (即時同步就緒)');
                     showToast('成功從雲端載入最新排班與司機資料！', 'success');
                 } else {
                     loadFromLocalStorage();
+                    updateCloudStatus('connected', '雲端已連線 (新資料庫就緒)');
                 }
             } catch (error) {
-                console.warn("Cloud load fallback to local:", error);
+                console.warn("Cloud connection error:", error);
                 loadFromLocalStorage();
-                showToast('已載入本地儲存紀錄', 'warning');
+                updateCloudStatus('error', '雲端連線受阻 (已切換本地緩存，可手動儲存)');
+                showToast('雲端驗證受阻，已讀取本地紀錄', 'warning');
             }
 
             renderTable();
@@ -602,17 +627,33 @@
                 localStorage.setItem('taxi_local_drivers_v196', JSON.stringify(driversDb));
 
                 if (db && rosterDocRef && driversDocRef) {
+                    updateCloudStatus('connecting', '正在上傳至雲端...');
                     await Promise.all([
                         setDoc(rosterDocRef, { records: rosterRecords, notes: notesRecords, updatedAt: Date.now() }),
                         setDoc(driversDocRef, { drivers: driversDb, updatedAt: Date.now() })
                     ]);
+                    updateCloudStatus('connected', '雲端已連線 (同步成功)');
                     showToast('🎉 成功儲存並同步上傳至雲端！所有同事重新整理即可看到最新資料。', 'success');
                 } else {
-                    showToast('已儲存至本地 (雲端未初始化)', 'warning');
+                    // 若未初始化成功，嘗試重新初始化再存
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    await signInAnonymously(auth);
+                    rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'taxi_roster', 'shared_schedule');
+                    driversDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drivers_db', 'all_drivers');
+
+                    await Promise.all([
+                        setDoc(rosterDocRef, { records: rosterRecords, notes: notesRecords, updatedAt: Date.now() }),
+                        setDoc(driversDocRef, { drivers: driversDb, updatedAt: Date.now() })
+                    ]);
+                    updateCloudStatus('connected', '雲端已連線 (同步成功)');
+                    showToast('🎉 成功連接雲端並完成同步上傳！', 'success');
                 }
             } catch (err) {
                 console.error("Cloud sync error:", err);
-                showToast('上傳雲端失敗，請檢查網絡後重試', 'error');
+                updateCloudStatus('error', '雲端上傳失敗 (已存本地)');
+                showToast('上傳雲端失敗，請檢查網絡或沙盒權限', 'error');
             }
         };
 
