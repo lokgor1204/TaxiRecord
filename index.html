@@ -32,28 +32,30 @@
 
     <!-- 頂部導航欄 -->
     <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
-        <div class="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-md">
-                    <i class="fa-solid fa-taxi text-white text-xl"></i>
+        <div class="max-w-6xl mx-auto px-3 py-3 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center shadow-md shrink-0">
+                    <i class="fa-solid fa-taxi text-white text-base"></i>
                 </div>
-                <div>
-                    <h1 class="font-bold text-base sm:text-lg tracking-wide leading-tight">的士編更雲端系統</h1>
-                    <p class="text-xs text-slate-400">團隊共用排班表</p>
+                <div class="min-w-0">
+                    <h1 class="font-bold text-sm sm:text-lg tracking-tight whitespace-nowrap leading-tight text-white">的士編更雲端系統</h1>
+                    <p class="text-[11px] text-slate-400 truncate">團隊共用排班表</p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 shrink-0">
                 <!-- 雲端連線狀態指示燈 -->
-                <div id="syncStatusBadge" class="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 text-xs">
-                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span id="statusText">連線雲端中...</span>
+                <div id="syncStatusBadge" class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1.5 rounded-full border border-slate-700 text-[11px] sm:text-xs">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="statusText" class="hidden sm:inline">連線雲端中...</span>
+                    <span class="sm:hidden">連線中</span>
                 </div>
 
                 <!-- 主儲存按鈕 -->
-                <button id="mainSaveBtn" onclick="saveToCloud()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-2">
-                    <i class="fa-solid fa-cloud-arrow-up text-base"></i>
-                    <span id="mainSaveBtnText">儲存紀錄並同步給所有人</span>
+                <button id="mainSaveBtn" onclick="saveToCloud()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-up text-sm"></i>
+                    <span id="mainSaveBtnText" class="hidden sm:inline">儲存紀錄並同步給所有人</span>
+                    <span class="sm:hidden">儲存</span>
                 </button>
             </div>
         </div>
