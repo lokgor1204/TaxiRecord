@@ -43,7 +43,7 @@
 
             <div class="flex items-center gap-2 shrink-0">
                 <!-- 雲端連線狀態指示燈 -->
-                <div id="syncStatusBadge" class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1.5 rounded-full border border-slate-700 text-[11px] sm:text-xs">
+                <div id="syncStatusBadge" onclick="reconnectFirebase()" class="cursor-pointer flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-full border border-slate-700 text-[11px] sm:text-xs transition" title="點擊重新連線雲端">
                     <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
                     <span id="statusText" class="hidden sm:inline">連線雲端中...</span>
                     <span class="sm:hidden">連線中</span>
@@ -58,12 +58,12 @@
             </div>
         </div>
 
-        <!-- 未儲存提示橫幅 -->
-        <div id="unsavedBanner" class="hidden bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold shadow-inner">
-            <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation animate-bounce"></i>
-                    <span>你有未儲存的修改！請按「儲存」將最新變動同步給所有同事。</span>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
+                        <span class="px-2.5 py-0.5 text-[11px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.3</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 truncate">即時同步排班表 • 備註交接 • 司機資料庫</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <button onclick="discardChanges()" class="px-2.5 py-1 rounded-lg bg-amber-600/30 hover:bg-amber-600/50 text-slate-900 font-semibold transition">放棄修改</button>
@@ -485,15 +485,15 @@
     <!-- 頁尾 -->
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
-            <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，更新網頁程式碼絕不影響現有紀錄。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.9.2</p>
+            <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，點擊右上角連線狀態燈可隨時手動重新連線。</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.9.3</p>
         </div>
     </footer>
 
     <!-- Firebase SDK 與應用程式邏輯 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // 預設 Firebase 設定（優先讀取環境變數，否則使用 taxirecord123 設定）
@@ -632,10 +632,11 @@
         }
 
         // =========================================================================
-        // Firebase 初始化與雲端即時同步
+        // Firebase 初始化與雲端即時同步 (含手動重連機制)
         // =========================================================================
         async function initFirebase() {
             try {
+                updateConnectionStatus('connecting', '重新連線中...');
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -674,11 +675,9 @@
                     }
                 }, (error) => {
                     console.error("監聽雲端排班資料錯誤:", error);
-                    updateConnectionStatus('error', '雲端讀取受阻');
+                    updateConnectionStatus('error', '雲端連線中斷');
                     if (error.code === 'permission-denied') {
                         showToast('讀取受阻：權限不足，請確認 Firebase Rules 已設為 allow read, write: if true;', 'error');
-                    } else if (error.code !== 'not-found') {
-                        showToast('讀取雲端資料失敗：' + error.message, 'error');
                     }
                 });
 
@@ -702,10 +701,15 @@
 
             } catch (error) {
                 console.error("初始化錯誤:", error);
-                updateConnectionStatus('error', '離線本機模式');
-                showToast('雲端未連線，目前處於本機編輯模式', 'warning');
+                updateConnectionStatus('error', '離線本機模式 (點擊重試)');
+                showToast('雲端連線失敗，點擊右上角連線燈號可重新連線', 'error');
             }
         }
+
+        window.reconnectFirebase = function() {
+            showToast('正在嘗試重新連線雲端...', 'info');
+            initFirebase();
+        };
 
         // =========================================================================
         // 主分頁切換與司機資料庫自動聯動功能
