@@ -1,19 +1,216 @@
-<!-- ... existing code ... -->
-            <!-- 雲端狀態與設定說明按鈕 -->
-            <div class="flex items-center gap-2 text-xs sm:text-sm">
-                <div id="syncStatusBadge" class="flex items-center gap-1.5 bg-red-800/80 px-3 py-1.5 rounded-full border border-red-500/40">
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>的士替更編更雲端系統</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 未儲存變更提示橫幅 (浮動置頂) -->
+    <div id="unsavedBanner" class="hidden sticky top-0 z-50 bg-amber-500 text-slate-950 px-4 py-2.5 shadow-md flex items-center justify-between gap-2 text-xs sm:text-sm font-bold">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation animate-bounce"></i>
+            <span>您有未儲存的更改！記得按下方或右上角按鈕儲存，否則其他人睇唔到最新紀錄。</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="discardChanges()" class="px-2.5 py-1 bg-white/80 hover:bg-white text-slate-800 rounded text-xs transition">還原</button>
+            <button id="bannerSaveBtn" onclick="saveToCloud()" class="px-3 py-1 bg-slate-900 text-white rounded shadow hover:bg-slate-800 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>立即儲存並同步</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 頂部導航欄 -->
+    <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-md">
+                    <i class="fa-solid fa-taxi text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg tracking-wide leading-tight">的士編更雲端系統</h1>
+                    <p class="text-xs text-slate-400">團隊共用排班表</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- 雲端連線狀態指示燈 -->
+                <div id="syncStatusBadge" class="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 text-xs">
                     <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
                     <span id="statusText">連線雲端中...</span>
                 </div>
+
+                <!-- 主儲存按鈕 -->
+                <button id="mainSaveBtn" onclick="saveToCloud()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-base"></i>
+                    <span id="mainSaveBtnText">儲存紀錄並同步給所有人</span>
+                </button>
             </div>
         </div>
     </header>
-<!-- ... existing code ... -->
+
+    <!-- 主要內容區 -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- 左側：加入新替更紀錄表單 -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 sticky top-20">
+                <h2 class="font-bold text-base text-slate-900 mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <i class="fa-solid fa-user-plus text-red-600"></i>
+                    加入替更司機紀錄
+                </h2>
+
+                <form onsubmit="handleAddRecord(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">司機姓名 <span class="text-rose-500">*</span></label>
+                        <input type="text" id="driverName" required placeholder="例如：陳大文" 
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">電話號碼 <span class="text-rose-500">*</span></label>
+                        <input type="tel" id="driverPhone" required placeholder="例如：91234567" 
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">更份選擇 <span class="text-rose-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/50 has-[:checked]:text-amber-900 font-semibold text-xs">
+                                <input type="radio" name="shiftType" value="早更" checked class="text-amber-600 focus:ring-amber-500">
+                                <i class="fa-solid fa-sun text-amber-500"></i> 早更
+                            </label>
+                            <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50/50 has-[:checked]:text-indigo-900 font-semibold text-xs">
+                                <input type="radio" name="shiftType" value="夜更" class="text-indigo-600 focus:ring-indigo-500">
+                                <i class="fa-solid fa-moon text-indigo-500"></i> 夜更
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">每星期返工星期 (可選多個) <span class="text-rose-500">*</span></label>
+                        <div class="grid grid-cols-4 gap-1.5">
+                            <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
+                                <input type="checkbox" name="workDay" value="星期一" class="hidden"> 星期一
+                            </label>
+                            <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
+                                <input type="checkbox" name="workDay" value="星期二" class="hidden"> 星期二
+                            </label>
+                            <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
+                                <input type="checkbox" name="workDay" value="星期三" class="hidden"> 星期三
+                            </label>
+                            <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
+                                <input type="checkbox" name="workDay" value="星期四" class="hidden"> 星期四
+                            </label>
+                            <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
+                                <input type="checkbox" name="workDay" value="星期五" class="hidden"> 星期五
+                            </label>
+                            <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
+                                <input type="checkbox" name="workDay" value="星期六" class="hidden"> 星期六
+                            </label>
+                            <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
+                                <input type="checkbox" name="workDay" value="星期日" class="hidden"> 星期日
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm">
+                        <i class="fa-solid fa-plus"></i> 加入暫存列表
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 右側：排班紀錄列表與快速篩選 -->
+        <div class="lg:col-span-2 flex flex-col gap-4">
+            
+            <!-- 快速篩選與搜尋列 -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col gap-3">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div class="relative w-full sm:w-64">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" id="searchInput" oninput="renderTable()" placeholder="搜尋姓名或電話..." 
+                            class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <div class="flex bg-slate-100 p-1 rounded-xl">
+                            <button onclick="setFilterShift('ALL')" data-shift="ALL" class="shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition">全部更</button>
+                            <button onclick="setFilterShift('早更')" data-shift="早更" class="shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition">☀️早更</button>
+                            <button onclick="setFilterShift('夜更')" data-shift="夜更" class="shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition">🌙夜更</button>
+                        </div>
+                        <span id="recordCountBadge" class="text-xs font-bold text-slate-500 px-2 py-1 bg-slate-100 rounded-lg whitespace-nowrap">共 0 筆</span>
+                    </div>
+                </div>
+
+                <!-- 8 格平均分佈星期篩選列 (手機超友善) -->
+                <div class="grid grid-cols-8 gap-1 pt-1 border-t border-slate-100">
+                    <button onclick="setFilterDay('ALL')" data-day="ALL" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-red-600 text-white shadow-sm transition truncate text-center">全部</button>
+                    <button onclick="setFilterDay('星期一')" data-day="星期一" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center">一</button>
+                    <button onclick="setFilterDay('星期二')" data-day="星期二" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center">二</button>
+                    <button onclick="setFilterDay('星期三')" data-day="星期三" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center">三</button>
+                    <button onclick="setFilterDay('星期四')" data-day="星期四" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center">四</button>
+                    <button onclick="setFilterDay('星期五')" data-day="星期五" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center">五</button>
+                    <button onclick="setFilterDay('星期六')" data-day="星期六" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center">六</button>
+                    <button onclick="setFilterDay('星期日')" data-day="星期日" class="day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center">日</button>
+                </div>
+            </div>
+
+            <!-- 排班紀錄展示 (手機卡片 / 電腦表格) -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                
+                <!-- 手機版卡片清單 (sm 以下顯示) -->
+                <div id="mobileRosterList" class="block sm:hidden p-3 space-y-3">
+                    <!-- 動態渲染 -->
+                </div>
+
+                <!-- 電腦版表格 (sm 以上顯示) -->
+                <div class="hidden sm:block overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                <th class="px-5 py-3">司機姓名</th>
+                                <th class="px-5 py-3">電話號碼</th>
+                                <th class="px-5 py-3">返工星期</th>
+                                <th class="px-5 py-3">更份</th>
+                                <th class="px-5 py-3 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="desktopRosterBody" class="divide-y divide-slate-100 text-sm">
+                            <!-- 動態渲染 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 空狀態提示 -->
+                <div id="emptyState" class="hidden py-16 text-center text-slate-400">
+                    <i class="fa-solid fa-clipboard-list text-4xl mb-3 text-slate-300"></i>
+                    <p class="text-sm font-medium">暫時沒有符合條件的替更紀錄</p>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
     <!-- 頁尾 -->
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
             <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，更新網頁程式碼絕不影響現有紀錄。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.4.1</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.4.2</p>
         </div>
     </footer>
 
@@ -65,13 +262,13 @@
             label.textContent = text;
             if (state === 'connected') {
                 dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-                badge.className = 'flex items-center gap-1.5 bg-red-900/60 px-3 py-1.5 rounded-full border border-emerald-400/50 text-emerald-100';
+                badge.className = 'flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-emerald-500/40 text-emerald-300';
             } else if (state === 'error') {
                 dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
-                badge.className = 'flex items-center gap-1.5 bg-red-950/90 px-3 py-1.5 rounded-full border border-rose-400/60 text-rose-200';
+                badge.className = 'flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-rose-500/40 text-rose-300';
             } else {
                 dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
-                badge.className = 'flex items-center gap-1.5 bg-red-800/80 px-3 py-1.5 rounded-full border border-red-500/40';
+                badge.className = 'flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-full border border-amber-500/40 text-amber-200';
             }
         }
 
@@ -222,7 +419,6 @@
             showToast('已還原為雲端最新儲存版本', 'info');
         };
 
-        // 儲存至雲端 (關鍵功能：按下儲存制後，所有人先會睇到同一個紀錄)
         window.saveToCloud = async function() {
             if (isSaving) return;
 
@@ -243,7 +439,6 @@
             if (bannerBtnText) bannerBtnText.textContent = '儲存中...';
 
             try {
-                // 加入 12 秒超時保護，防止網絡或 Firestore 規則權限問題導致無限期卡住
                 const savePromise = setDoc(rosterDocRef, {
                     records: localRecords,
                     updatedAt: Date.now(),
@@ -276,9 +471,9 @@
             filterDay = day;
             document.querySelectorAll('.day-filter-btn').forEach(btn => {
                 if (btn.dataset.day === day) {
-                    btn.className = 'day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white shadow-sm transition';
+                    btn.className = 'day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-red-600 text-white shadow-sm transition truncate text-center';
                 } else {
-                    btn.className = 'day-filter-btn py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+                    btn.className = 'day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center';
                 }
             });
             renderTable();
@@ -288,9 +483,9 @@
             filterShift = shift;
             document.querySelectorAll('.shift-filter-btn').forEach(btn => {
                 if (btn.dataset.shift === shift) {
-                    btn.className = 'shift-filter-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition';
+                    btn.className = 'shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition';
                 } else {
-                    btn.className = 'shift-filter-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+                    btn.className = 'shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition';
                 }
             });
             renderTable();
@@ -318,7 +513,7 @@
 
             const countBadge = document.getElementById('recordCountBadge');
             if (countBadge) {
-                countBadge.textContent = `共 ${filtered.length} 筆紀錄`;
+                countBadge.textContent = `共 ${filtered.length} 筆`;
             }
 
             const mobileList = document.getElementById('mobileRosterList');
@@ -414,7 +609,6 @@
             }
         };
 
-        // 防止 XSS 攻擊的 HTML 轉義函式
         function escapeHTML(str) {
             if (!str) return '';
             return String(str)
@@ -425,7 +619,6 @@
                 .replace(/'/g, '&#039;');
         }
 
-        // 離開網頁前若仍有未儲存變更，提醒用戶
         window.addEventListener('beforeunload', (e) => {
             if (hasUnsavedChanges) {
                 e.preventDefault();
@@ -433,7 +626,6 @@
             }
         });
 
-        // 頁面載入後啟動
         window.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
