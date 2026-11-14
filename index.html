@@ -4,681 +4,1176 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>的士編更雲端系統</title>
-    <!-- Tailwind CSS -->
+    <!-- 載入 Tailwind CSS 與 FontAwesome 圖示 -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' }
-                    }
-                }
-            }
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f8fafc;
         }
-    </script>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+<body class="min-h-screen flex flex-col text-slate-800">
 
-    <!-- 頂部導航列 -->
-    <header class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
-            <div class="flex items-center gap-3">
-                <div class="bg-white/10 p-2.5 rounded-xl backdrop-blur-sm">
-                    <i class="fa-solid fa-taxi text-2xl text-yellow-300"></i>
+    <!-- 頂部導航與狀態欄 -->
+    <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-inner shrink-0">
+                    <i class="fa-solid fa-taxi text-white text-lg"></i>
                 </div>
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-bold tracking-wide">的士編更雲端系統</h1>
-                    <div class="flex items-center gap-2 text-xs text-blue-200 mt-0.5">
-                        <span id="version-tag" class="bg-blue-900/60 px-2 py-0.5 rounded font-mono">v2.0.0</span>
-                        <span>•</span>
-                        <span id="conn-status" class="flex items-center gap-1.5 text-emerald-300 font-medium">
-                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 雲端資料庫已連線 (即時同步)
-                        </span>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.5</span>
                     </div>
+                    <p class="text-[11px] text-slate-400 truncate">即時雲端同步 • 備註交接 • 司機資料庫</p>
                 </div>
             </div>
-            
-            <!-- 分頁切換按鈕 -->
-            <div class="flex bg-blue-900/50 p-1 rounded-xl backdrop-blur-sm border border-blue-600/30">
-                <button onclick="switchTab('roster')" id="tab-roster-btn" class="px-4 py-2 rounded-lg font-medium text-sm transition-all bg-white text-blue-900 shadow">
-                    <i class="fa-solid fa-calendar-days mr-1.5"></i> 排班與備註
+
+            <div class="flex items-center gap-2 shrink-0">
+                <!-- 連線狀態指示燈 -->
+                <div id="syncStatusBadge" onclick="reconnectFirebase()" class="cursor-pointer flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-full border border-slate-700 text-xs transition" title="點擊重新連線">
+                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="statusText">雲端即時連線中</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分頁導航列 -->
+        <div class="bg-slate-800 border-t border-slate-700">
+            <div class="max-w-6xl mx-auto px-4 flex gap-2 py-2">
+                <button onclick="switchMainTab('roster')" id="tabBtnRoster" class="px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-red-600 text-white shadow-sm transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-calendar-check"></i>
+                    <span>排班與備註</span>
                 </button>
-                <button onclick="switchTab('drivers')" id="tab-drivers-btn" class="px-4 py-2 rounded-lg font-medium text-sm transition-all text-blue-100 hover:text-white">
-                    <i class="fa-solid fa-users mr-1.5"></i> 司機資料庫 <span id="driver-badge" class="ml-1 bg-blue-600 text-white text-xs px-1.5 py-0.2 rounded-full">0</span>
+                <button onclick="switchMainTab('drivers')" id="tabBtnDrivers" class="px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-address-book"></i>
+                    <span>👥 司機資料庫</span>
+                    <span id="navDriverCount" class="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-slate-700 text-slate-200">0</span>
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- 主內容區 -->
-    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+    <!-- 提示訊息框 (Toast) -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
 
-        <!-- ================= 頁籤一：排班與備註 ================= -->
-        <div id="tab-roster-content" class="space-y-6">
-            
-            <!-- 頂部控制面板 -->
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-center justify-between gap-4">
-                <div class="flex flex-wrap items-center gap-3">
-                    <div class="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-200">
-                        <span class="text-xs font-semibold text-gray-500">篩選星期:</span>
-                        <select id="filter-day" onchange="renderAll()" class="bg-transparent text-sm font-medium focus:outline-none cursor-pointer">
-                            <option value="ALL">全部顯示</option>
-                            <option value="星期一">星期一</option>
-                            <option value="星期二">星期二</option>
-                            <option value="星期三">星期三</option>
-                            <option value="星期四">星期四</option>
-                            <option value="星期五">星期五</option>
-                            <option value="星期六">星期六</option>
-                            <option value="星期日">星期日</option>
-                        </select>
-                    </div>
-                    <div class="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-200">
-                        <span class="text-xs font-semibold text-gray-500">身份:</span>
-                        <select id="filter-shift" onchange="renderAll()" class="bg-transparent text-sm font-medium focus:outline-none cursor-pointer">
-                            <option value="ALL">全部身份</option>
-                            <option value="正更">正更</option>
-                            <option value="替更">替更</option>
-                        </select>
-                    </div>
+    <!-- 自訂確認對話框 -->
+    <div id="customConfirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+            <div class="flex items-center gap-3 text-rose-600 mb-3">
+                <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-circle-question text-lg"></i>
                 </div>
-
-                <div class="flex items-center gap-3">
-                    <button onclick="saveAllData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium text-sm shadow-sm hover:shadow transition flex items-center gap-2">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> 立即儲存並同步
-                    </button>
-                    <button onclick="resetData()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-2.5 rounded-xl text-sm transition" title="重設資料">
-                        <i class="fa-solid fa-rotate-right"></i>
-                    </button>
-                </div>
+                <h3 class="font-bold text-base text-slate-900">確認操作</h3>
             </div>
-
-            <!-- 兩欄佈局：新增表單 vs 記錄列表 -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                <!-- 左側：新增/修改表單 -->
-                <div class="lg:col-span-1 space-y-6">
-                    
-                    <!-- 排班紀錄表單 -->
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                        <div class="flex justify-between items-center border-b pb-3">
-                            <h2 id="form-title" class="font-bold text-gray-800 flex items-center gap-2">
-                                <i class="fa-solid fa-user-plus text-blue-600"></i> 新增排班紀錄
-                            </h2>
-                            <button id="cancel-edit-btn" onclick="cancelEdit()" class="hidden text-xs text-red-500 hover:underline">取消修改</button>
-                        </div>
-                        
-                        <input type="hidden" id="edit-index" value="-1">
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">星期 (Day)</label>
-                            <select id="input-day" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                                <option value="星期一">星期一</option>
-                                <option value="星期二">星期二</option>
-                                <option value="星期三">星期三</option>
-                                <option value="星期四">星期四</option>
-                                <option value="星期五">星期五</option>
-                                <option value="星期六">星期六</option>
-                                <option value="星期日">星期日</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">司機姓名</label>
-                            <input type="text" id="input-name" list="driver-suggestions" oninput="autofillDriverInfo(this.value)" placeholder="輸入或選取司機姓名..." class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                            <datalist id="driver-suggestions"></datalist>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">身份分類</label>
-                            <select id="input-shift-type" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                                <option value="正更">正更</option>
-                                <option value="替更">替更</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">聯絡電話</label>
-                            <input type="text" id="input-phone" placeholder="例如: 91234567" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">正更放假日期 (選填)</label>
-                                <input type="date" id="input-leave-date" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">替更優先排更 (選填)</label>
-                                <input type="date" id="input-priority-date" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                            </div>
-                        </div>
-
-                        <button onclick="saveRecord()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl shadow transition text-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-plus"></i> <span id="form-btn-text">確認新增紀錄</span>
-                        </button>
-                    </div>
-
-                    <!-- 備註與交接記事表單 -->
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                        <div class="flex justify-between items-center border-b pb-3">
-                            <h2 id="note-form-title" class="font-bold text-gray-800 flex items-center gap-2">
-                                <i class="fa-solid fa-note-sticky text-amber-500"></i> 新增備註與交接
-                            </h2>
-                            <button id="cancel-note-btn" onclick="cancelNoteEdit()" class="hidden text-xs text-red-500 hover:underline">取消</button>
-                        </div>
-                        
-                        <input type="hidden" id="edit-note-index" value="-1">
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">涉及司機 (選填)</label>
-                            <input type="text" id="note-driver" list="driver-suggestions" placeholder="輸入司機姓名..." class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">開始日期</label>
-                                <input type="date" id="note-start-date" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">結束日期</label>
-                                <input type="date" id="note-end-date" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1">備註內容</label>
-                            <textarea id="note-content" rows="3" placeholder="輸入交接事項、驗車日期或特別安排..." class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"></textarea>
-                        </div>
-
-                        <button onclick="saveNote()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 rounded-xl shadow transition text-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-check"></i> <span id="note-btn-text">儲存備註記事</span>
-                        </button>
-                    </div>
-
-                </div>
-
-                <!-- 右側：排班列表與備註清單 -->
-                <div class="lg:col-span-2 space-y-6">
-                    
-                    <!-- 排班紀錄清單 -->
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                        <div class="flex justify-between items-center border-b pb-3">
-                            <h2 class="font-bold text-gray-800 flex items-center gap-2">
-                                <i class="fa-solid fa-list-check text-blue-600"></i> 排班與請假名單
-                            </h2>
-                            <span id="record-count" class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">共 0 項</span>
-                        </div>
-
-                        <div id="roster-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                            <!-- 動態載入 -->
-                        </div>
-                    </div>
-
-                    <!-- 備註記事清單 -->
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                        <div class="flex justify-between items-center border-b pb-3">
-                            <h2 class="font-bold text-gray-800 flex items-center gap-2">
-                                <i class="fa-solid id-card text-amber-500"></i> 備註與交接記事清單
-                            </h2>
-                            <span id="note-count" class="text-xs bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full font-medium">共 0 項</span>
-                        </div>
-
-                        <div id="notes-list" class="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                            <!-- 動態載入 -->
-                        </div>
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <!-- ================= 頁籤二：司機資料庫 ================= -->
-        <div id="tab-drivers-content" class="space-y-6 hidden">
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h2 class="font-bold text-lg text-gray-800 flex items-center gap-2">
-                        <i class="fa-solid fa-users-gear text-blue-600"></i> 司機資料庫管理
-                    </h2>
-                    <p class="text-xs text-gray-500 mt-0.5">統一管理全體正替更司機姓名、電話與身份，支援與排班表自動聯動。</p>
-                </div>
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <button onclick="importDriversFromRoster()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-medium transition flex items-center gap-1.5">
-                        <i class="fa-solid fa-file-arrow-down"></i> 從現有排班匯入
-                    </button>
-                    <button onclick="openDriverModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-medium shadow-sm transition flex items-center gap-1.5">
-                        <i class="fa-solid fa-user-plus"></i> 新增司機
-                    </button>
-                </div>
-            </div>
-
-            <!-- 搜尋與篩選列 -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-center justify-between gap-3">
-                <div class="relative flex-1 min-w-[240px]">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-sm"></i>
-                    <input type="text" id="driver-search-input" oninput="renderDriversList()" placeholder="搜尋司機姓名或電話..." class="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                </div>
-                <div class="flex items-center gap-1.5 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs font-medium">
-                    <button onclick="setDriverFilter('ALL')" id="dfilter-all" class="px-3 py-1.5 rounded-lg bg-white shadow-sm text-blue-900 transition">全部</button>
-                    <button onclick="setDriverFilter('正更')" id="dfilter-pos" class="px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900 transition">正更</button>
-                    <button onclick="setDriverFilter('替更')" id="dfilter-rel" class="px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900 transition">替更</button>
-                </div>
-            </div>
-
-            <!-- 司機卡片/表格清單 -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                <div class="flex justify-between items-center border-b pb-3">
-                    <span id="driver-total-count" class="text-xs font-semibold text-gray-500">共 0 位司機</span>
-                </div>
-                <div id="drivers-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <!-- 動態載入 -->
-                </div>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- 新增/修改司機彈窗 Modal -->
-    <div id="driver-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95">
-            <div class="flex justify-between items-center border-b pb-3">
-                <h3 id="driver-modal-title" class="font-bold text-gray-800 text-lg flex items-center gap-2">
-                    <i class="fa-solid fa-user-plus text-blue-600"></i> 新增司機
-                </h3>
-                <button onclick="closeDriverModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-            
-            <input type="hidden" id="modal-driver-id" value="">
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">司機姓名</label>
-                <input type="text" id="modal-driver-name" placeholder="例如: 陳大文" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">身份分類</label>
-                <select id="modal-driver-type" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                    <option value="正更">正更</option>
-                    <option value="替更">替更</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">聯絡電話</label>
-                <input type="text" id="modal-driver-phone" placeholder="例如: 91234567" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            </div>
-
-            <div class="flex gap-3 pt-2">
-                <button onclick="closeDriverModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-medium text-sm transition">取消</button>
-                <button onclick="saveDriverFromModal()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-medium text-sm shadow transition">儲存司機</button>
+            <p id="confirmModalMessage" class="text-sm text-slate-600 mb-5 leading-relaxed"></p>
+            <div class="flex justify-end gap-2">
+                <button id="confirmCancelBtn" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition">取消</button>
+                <button id="confirmOkBtn" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow transition">確定執行</button>
             </div>
         </div>
     </div>
 
-    <!-- 底部版權提示 -->
-    <footer class="text-center py-6 text-xs text-gray-400 space-y-1">
-        <p>的士編更雲端系統 • 高效排班與司機資料同步管理</p>
-        <p class="font-mono">Version 2.0.0 (Persistent Local Cloud Engine)</p>
+    <!-- 分頁一：排班與備註主要內容區 -->
+    <main id="viewRoster" class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+            <!-- 左側：加入新替更紀錄表單 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 sticky top-32">
+                    <h2 id="formTitle" class="font-bold text-base text-slate-900 mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-user-plus text-red-600"></i>
+                            <span id="formTitleText">加入司機排班紀錄</span>
+                        </span>
+                        <button id="cancelEditBtn" type="button" onclick="cancelEditMode()" class="hidden text-xs text-rose-600 hover:text-rose-700 font-semibold bg-rose-50 px-2.5 py-1 rounded-lg transition">取消修改</button>
+                    </h2>
+
+                    <form onsubmit="handleAddRecord(event)" class="space-y-4">
+                        <input type="hidden" id="editingRecordId" value="">
+                        
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-xs font-bold text-slate-700">司機姓名 <span class="text-rose-500">*</span></label>
+                                <span class="text-[11px] text-slate-400">可從資料庫自動帶入</span>
+                            </div>
+                            <input type="text" id="driverName" list="allDriverSuggestions" oninput="autoFillDriverFromDB(this.value)" required placeholder="輸入或選擇司機..." 
+                                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                            <datalist id="allDriverSuggestions"></datalist>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">聯絡電話 <span class="text-rose-500">*</span></label>
+                            <input type="tel" id="driverPhone" required placeholder="例如：91234567" 
+                                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">司機分類 <span class="text-rose-500">*</span></label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50/50 has-[:checked]:text-blue-900 font-semibold text-xs">
+                                    <input type="radio" name="driverType" value="正更" checked class="text-blue-600 focus:ring-blue-500">
+                                    <i class="fa-solid fa-id-card text-blue-500"></i> 正更
+                                </label>
+                                <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50/50 has-[:checked]:text-purple-900 font-semibold text-xs">
+                                    <input type="radio" name="driverType" value="替更" class="text-purple-600 focus:ring-purple-500">
+                                    <i class="fa-solid fa-user-clock text-purple-500"></i> 替更
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">更份時段 <span class="text-rose-500">*</span></label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/60 has-[:checked]:text-amber-900 font-semibold text-xs">
+                                    <input type="radio" name="shiftType" value="早更" checked class="text-amber-500 focus:ring-amber-500">
+                                    <i class="fa-solid fa-sun text-amber-500"></i> 早更
+                                </label>
+                                <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50/60 has-[:checked]:text-indigo-900 font-semibold text-xs">
+                                    <input type="radio" name="shiftType" value="夜更" class="text-indigo-600 focus:ring-indigo-500">
+                                    <i class="fa-solid fa-moon text-indigo-500"></i> 夜更
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-xs font-bold text-slate-700">可返工日子 <span class="text-rose-500">*</span></label>
+                                <div class="flex gap-1.5">
+                                    <button type="button" onclick="selectAllDays(true)" class="text-[11px] text-blue-600 hover:underline font-medium">全選</button>
+                                    <span class="text-slate-300">|</span>
+                                    <button type="button" onclick="selectAllDays(false)" class="text-[11px] text-slate-500 hover:underline">清除</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-4 gap-1.5">
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期一" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">一</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期二" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">二</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期三" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">三</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期四" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">四</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期五" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">五</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期六" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">六</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期日" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">日</div></label>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="submitRecordBtn" class="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm">
+                            <i id="submitRecordIcon" class="fa-solid fa-plus"></i>
+                            <span id="submitRecordText">加入排班列表</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 右側：排班列表 + 備註記事區 -->
+            <div class="lg:col-span-2 flex flex-col gap-6">
+                
+                <!-- 1. 排班列表區塊 -->
+                <div class="flex flex-col gap-4">
+                    <!-- 搜尋與篩選控制列 -->
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+                        <div class="flex flex-col sm:flex-row gap-3 justify-between">
+                            <div class="relative flex-grow">
+                                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                                </span>
+                                <input type="text" id="searchInput" oninput="renderTable()" placeholder="搜尋司機姓名或電話..." 
+                                    class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                            </div>
+
+                            <div class="flex items-center gap-2 justify-between sm:justify-end">
+                                <div class="flex bg-slate-100 p-1 rounded-xl">
+                                    <button onclick="setFilterShift('ALL')" data-shift="ALL" class="shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition">全部</button>
+                                    <button onclick="setFilterShift('早更')" data-shift="早更" class="shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition">早更</button>
+                                    <button onclick="setFilterShift('夜更')" data-shift="夜更" class="shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition">夜更</button>
+                                </div>
+                                <span id="recordCountBadge" class="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl whitespace-nowrap">共 0 筆</span>
+                            </div>
+                        </div>
+
+                        <!-- 星期篩選列 -->
+                        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                            <button onclick="setFilterDay('ALL')" data-day="ALL" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white shadow-sm transition">全部日子</button>
+                            <button onclick="setFilterDay('星期一')" data-day="星期一" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期一</button>
+                            <button onclick="setFilterDay('星期二')" data-day="星期二" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期二</button>
+                            <button onclick="setFilterDay('星期三')" data-day="星期三" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期三</button>
+                            <button onclick="setFilterDay('星期四')" data-day="星期四" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期四</button>
+                            <button onclick="setFilterDay('星期五')" data-day="星期五" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期五</button>
+                            <button onclick="setFilterDay('星期六')" data-day="星期六" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期六</button>
+                            <button onclick="setFilterDay('星期日')" data-day="星期日" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期日</button>
+                        </div>
+                    </div>
+
+                    <!-- 排班資料顯示容器 -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                <i class="fa-solid fa-arrow-down-a-z text-slate-400"></i>
+                                排序：正更優先 → 替更（同組按 A-Z）
+                            </span>
+                        </div>
+
+                        <!-- 手機版卡片清單 -->
+                        <div id="mobileRosterList" class="block sm:hidden p-3 space-y-3"></div>
+
+                        <!-- 電腦版表格 -->
+                        <div class="hidden sm:block overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                        <th class="px-5 py-3">司機資料</th>
+                                        <th class="px-4 py-3">更份</th>
+                                        <th class="px-4 py-3">可返工日子</th>
+                                        <th class="px-4 py-3">聯絡電話</th>
+                                        <th class="px-5 py-3 text-right">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="desktopRosterBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- 空狀態 -->
+                        <div id="emptyState" class="hidden py-14 text-center text-slate-400">
+                            <i class="fa-solid fa-folder-open text-4xl mb-3 text-slate-300"></i>
+                            <p class="text-sm font-medium">暫無符合條件的排班紀錄</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 備註與交接記事區 -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-clipboard-list text-amber-500"></i>
+                            <span>備註與交接記事</span>
+                            <span id="notesCountBadge" class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">0</span>
+                        </h3>
+                        <button id="cancelNoteEditBtn" type="button" onclick="cancelNoteEdit()" class="hidden text-xs text-rose-600 hover:text-rose-700 font-semibold bg-rose-50 px-2.5 py-1 rounded-lg transition">取消修改備註</button>
+                    </div>
+
+                    <!-- 新增 / 修改備註表單 -->
+                    <form onsubmit="handleSaveNote(event)" class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                        <input type="hidden" id="editingNoteId" value="">
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">司機姓名 <span class="text-slate-400 font-normal">(可選)</span></label>
+                                <input type="text" id="noteDriverName" list="allDriverSuggestions" placeholder="輸入或選擇司機..." 
+                                    class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">開始日期 <span class="text-slate-400 font-normal">(可選)</span></label>
+                                <input type="date" id="noteStartDate" 
+                                    class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">結束日期 <span class="text-slate-400 font-normal">(可選)</span></label>
+                                <input type="date" id="noteEndDate" 
+                                    class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 transition">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">備註內容 <span class="text-rose-500">*</span></label>
+                            <textarea id="noteContent" rows="2" required placeholder="輸入特別交接事項、請假安排、驗車提醒或替更補更優先次序..." 
+                                class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 transition"></textarea>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
+                                <i id="noteSubmitIcon" class="fa-solid fa-plus"></i>
+                                <span id="noteSubmitText">新增備註</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- 備註清單 -->
+                    <div id="notesList" class="space-y-2.5"></div>
+
+                    <!-- 備註空狀態 -->
+                    <div id="notesEmptyState" class="py-8 text-center text-slate-400">
+                        <i class="fa-regular fa-comment-dots text-2xl mb-1.5 text-slate-300"></i>
+                        <p class="text-xs">暫時沒有任何備註紀錄</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- 分頁二：司機資料庫管理區 -->
+    <section id="viewDrivers" class="hidden max-w-6xl mx-auto px-4 py-6 flex-grow w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+            <!-- 左側：新增 / 修改司機資料表單 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 sticky top-32">
+                    <h2 class="font-bold text-base text-slate-900 mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-address-card text-blue-600"></i>
+                            <span id="dbFormTitle">新增司機至資料庫</span>
+                        </span>
+                        <button id="cancelDbEditBtn" type="button" onclick="cancelDbEdit()" class="hidden text-xs text-rose-600 hover:text-rose-700 font-semibold bg-rose-50 px-2.5 py-1 rounded-lg transition">取消修改</button>
+                    </h2>
+
+                    <form onsubmit="handleSaveDriverDB(event)" class="space-y-4">
+                        <input type="hidden" id="editingDbDriverId" value="">
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">司機姓名 <span class="text-rose-500">*</span></label>
+                            <input type="text" id="dbDriverName" required placeholder="例如：陳大文" 
+                                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">聯絡電話 <span class="text-rose-500">*</span></label>
+                            <input type="tel" id="dbDriverPhone" required placeholder="例如：91234567" 
+                                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">司機分類 <span class="text-rose-500">*</span></label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50/50 has-[:checked]:text-blue-900 font-semibold text-xs">
+                                    <input type="radio" name="dbDriverType" value="正更" checked class="text-blue-600 focus:ring-blue-500">
+                                    <i class="fa-solid fa-id-card text-blue-500"></i> 正更
+                                </label>
+                                <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50/50 has-[:checked]:text-purple-900 font-semibold text-xs">
+                                    <input type="radio" name="dbDriverType" value="替更" class="text-purple-600 focus:ring-purple-500">
+                                    <i class="fa-solid fa-user-clock text-purple-500"></i> 替更
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="syncRosterOptionBox" class="hidden bg-blue-50 border border-blue-200 rounded-xl p-3">
+                            <label class="flex items-start gap-2 cursor-pointer text-xs text-blue-900">
+                                <input type="checkbox" id="syncRosterCheckbox" checked class="mt-0.5 rounded text-blue-600 focus:ring-blue-500">
+                                <span>同時更新「排班表」內同名司機的電話與正/替更身份</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm">
+                            <i id="dbSubmitIcon" class="fa-solid fa-plus"></i>
+                            <span id="dbSubmitText">加入司機資料庫</span>
+                        </button>
+                    </form>
+
+                    <!-- 一鍵從現有排班匯入 -->
+                    <div class="mt-5 pt-4 border-t border-slate-100">
+                        <button type="button" onclick="importDriversFromRoster()" class="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-file-import text-slate-500"></i>
+                            <span>從現有排班表一鍵匯入司機</span>
+                        </button>
+                        <p class="text-[11px] text-slate-400 mt-1.5 text-center">自動抓取排班表內尚未建檔的司機名、電話及身份</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：司機名冊列表 -->
+            <div class="lg:col-span-2 flex flex-col gap-4">
+                
+                <!-- 搜尋與篩選列 -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div class="relative w-full sm:w-64">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" id="dbSearchInput" oninput="renderDriversDB()" placeholder="搜尋司機姓名或電話..." 
+                            class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition">
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <div class="flex bg-slate-100 p-1 rounded-xl">
+                            <button onclick="setDbFilterType('ALL')" data-dbtype="ALL" class="db-type-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition">全部</button>
+                            <button onclick="setDbFilterType('正更')" data-dbtype="正更" class="db-type-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition">正更</button>
+                            <button onclick="setDbFilterType('替更')" data-dbtype="替更" class="db-type-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition">替更</button>
+                        </div>
+                        <span id="dbCountBadge" class="text-xs font-bold text-slate-500 px-2.5 py-1 bg-slate-100 rounded-lg whitespace-nowrap">共 0 人</span>
+                    </div>
+                </div>
+
+                <!-- 司機名冊表格 -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div id="mobileDbList" class="block sm:hidden p-3 space-y-3"></div>
+
+                    <div class="hidden sm:block overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                    <th class="px-5 py-3">司機姓名</th>
+                                    <th class="px-5 py-3">分類</th>
+                                    <th class="px-5 py-3">聯絡電話</th>
+                                    <th class="px-5 py-3 text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="desktopDbBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="dbEmptyState" class="hidden py-16 text-center text-slate-400">
+                        <i class="fa-solid fa-users-slash text-4xl mb-3 text-slate-300"></i>
+                        <p class="text-sm font-medium">司機資料庫暫無紀錄</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- 頁尾 -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+        <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
+            <p>的士編更雲端系統 • 資料自動即時同步至雲端資料庫。</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.9.5</p>
+        </div>
     </footer>
 
-    <!-- JavaScript 邏輯 -->
-    <script>
-        // 資料結構初始化
-        let rosterRecords = JSON.parse(localStorage.getItem('taxi_roster_records_v2')) || [
-            { day: '星期一', name: '陳大文', shiftType: '正更', phone: '91234567', leaveDate: '', priorityDate: '' },
-            { day: '星期二', name: '李小龍', shiftType: '替更', phone: '98765432', leaveDate: '', priorityDate: '2026-06-15' }
-        ];
+    <!-- Firebase SDK 與主程式 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        let notesRecords = JSON.parse(localStorage.getItem('taxi_notes_records_v2')) || [
-            { driver: '陳大文', startDate: '2026-06-10', endDate: '2026-06-12', content: '車輛定期保養維修' }
-        ];
+        const firebaseConfig = {
+            apiKey: "AIzaSyDummyKeyForTaxirecord123",
+            authDomain: "taxirecord123.firebaseapp.com",
+            projectId: "taxirecord123",
+            storageBucket: "taxirecord123.firebasestorage.app",
+            messagingSenderId: "100000000000",
+            appId: "1:100000000000:web:taxirecord123"
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'taxirecord123';
 
-        let driversDb = JSON.parse(localStorage.getItem('taxi_drivers_db_v2')) || [
-            { id: '1', name: '陳大文', shiftType: '正更', phone: '91234567' },
-            { id: '2', name: '李小龍', shiftType: '替更', phone: '98765432' }
-        ];
+        let app, auth, db, rosterDocRef, driversDocRef;
+        let rosterRecords = [];
+        let notesRecords = [];
+        let driversDb = [];
+        let filterDay = 'ALL';
+        let filterShift = 'ALL';
+        let dbFilterType = 'ALL';
 
-        let driverFilterTab = 'ALL';
+        const DAYS_ORDER = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
 
-        // 初始化載入
-        window.onload = function() {
-            renderAll();
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function getWhatsAppUrl(phone) {
+            const digits = (phone || '').replace(/\D/g, '');
+            if (!digits) return '#';
+            const fullNumber = digits.length === 8 ? '852' + digits : digits;
+            return `https://wa.me/${fullNumber}`;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const colors = {
+                success: 'bg-emerald-600 text-white border-emerald-500',
+                error: 'bg-rose-600 text-white border-rose-500',
+                warning: 'bg-amber-500 text-slate-950 border-amber-400',
+                info: 'bg-slate-800 text-white border-slate-700'
+            };
+            const icons = {
+                success: 'fa-circle-check',
+                error: 'fa-circle-exclamation',
+                warning: 'fa-triangle-exclamation',
+                info: 'fa-circle-info'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-bold transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info} text-sm"></i><span>${escapeHTML(message)}</span>`;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function showConfirmDialog(message, onConfirm) {
+            const modal = document.getElementById('customConfirmModal');
+            const msgEl = document.getElementById('confirmModalMessage');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+            const okBtn = document.getElementById('confirmOkBtn');
+
+            msgEl.textContent = message;
+            modal.classList.remove('hidden');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                cancelBtn.onclick = null;
+                okBtn.onclick = null;
+            };
+
+            cancelBtn.onclick = cleanup;
+            okBtn.onclick = () => {
+                cleanup();
+                onConfirm();
+            };
+        }
+
+        function updateConnectionStatus(state, text) {
+            const dot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            if (!dot || !statusText) return;
+
+            statusText.textContent = text;
+            dot.className = 'w-2.5 h-2.5 rounded-full ' + (
+                state === 'connected' ? 'bg-emerald-400 animate-pulse' :
+                state === 'warning' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'
+            );
+        }
+
+        async function initFirebase() {
+            try {
+                updateConnectionStatus('warning', '雲端連線中...');
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                await signInAnonymously(auth);
+                updateConnectionStatus('connected', '雲端即時連線中');
+
+                rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'taxi_roster', 'shared_schedule');
+                driversDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drivers_db', 'all_drivers');
+
+                // 即時監聽排班與備註
+                onSnapshot(rosterDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        rosterRecords = Array.isArray(data.records) ? data.records : [];
+                        notesRecords = Array.isArray(data.notes) ? data.notes : [];
+                    } else {
+                        rosterRecords = [];
+                        notesRecords = [];
+                    }
+                    renderTable();
+                    renderNotes();
+                    updateDriverSuggestions();
+                }, (err) => {
+                    console.warn("Roster snapshot error:", err);
+                    loadFromLocalStorage();
+                });
+
+                // 即時監聽司機資料庫
+                onSnapshot(driversDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        driversDb = Array.isArray(data.drivers) ? data.drivers : [];
+                    } else {
+                        driversDb = [];
+                    }
+                    renderDriversDB();
+                    updateDriverSuggestions();
+                }, (err) => {
+                    console.warn("Drivers snapshot error:", err);
+                });
+
+            } catch (error) {
+                console.warn("Firebase Sandbox fallback active:", error);
+                updateConnectionStatus('warning', '本機離線模式 (自動備用)');
+                loadFromLocalStorage();
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const savedRoster = localStorage.getItem('taxi_local_roster_v195');
+                const savedNotes = localStorage.getItem('taxi_local_notes_v195');
+                const savedDrivers = localStorage.getItem('taxi_local_drivers_v195');
+
+                if (savedRoster) rosterRecords = JSON.parse(savedRoster);
+                if (savedNotes) notesRecords = JSON.parse(savedNotes);
+                if (savedDrivers) driversDb = JSON.parse(savedDrivers);
+            } catch (e) {
+                console.error(e);
+            }
+            renderTable();
+            renderNotes();
+            renderDriversDB();
+            updateDriverSuggestions();
+        }
+
+        async function syncToCloud() {
+            // 同步寫入 localStorage 作為備用
+            try {
+                localStorage.setItem('taxi_local_roster_v195', JSON.stringify(rosterRecords));
+                localStorage.setItem('taxi_local_notes_v195', JSON.stringify(notesRecords));
+                localStorage.setItem('taxi_local_drivers_v195', JSON.stringify(driversDb));
+
+                if (db && rosterDocRef && driversDocRef) {
+                    await Promise.all([
+                        setDoc(rosterDocRef, { records: rosterRecords, notes: notesRecords, updatedAt: Date.now() }),
+                        setDoc(driversDocRef, { drivers: driversDb, updatedAt: Date.now() })
+                    ]);
+                }
+            } catch (err) {
+                console.error("Cloud sync error:", err);
+            }
+        }
+
+        window.reconnectFirebase = function() {
+            showToast('正在重新連線...', 'info');
+            initFirebase();
+        };
+
+        window.switchMainTab = function(tab) {
+            const viewRoster = document.getElementById('viewRoster');
+            const viewDrivers = document.getElementById('viewDrivers');
+            const btnRoster = document.getElementById('tabBtnRoster');
+            const btnDrivers = document.getElementById('tabBtnDrivers');
+
+            if (tab === 'drivers') {
+                viewRoster.classList.add('hidden');
+                viewDrivers.classList.remove('hidden');
+                btnDrivers.className = 'px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-blue-600 text-white shadow-sm transition flex items-center gap-1.5';
+                btnRoster.className = 'px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center gap-1.5';
+                renderDriversDB();
+            } else {
+                viewDrivers.classList.add('hidden');
+                viewRoster.classList.remove('hidden');
+                btnRoster.className = 'px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-red-600 text-white shadow-sm transition flex items-center gap-1.5';
+                btnDrivers.className = 'px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center gap-1.5';
+                renderTable();
+            }
+        };
+
+        window.updateDriverSuggestions = function() {
+            const datalist = document.getElementById('allDriverSuggestions');
+            const navBadge = document.getElementById('navDriverCount');
+            if (navBadge) navBadge.textContent = driversDb.length;
+            if (!datalist) return;
+
+            const nameMap = new Map();
+            driversDb.forEach(d => {
+                if (d.name) nameMap.set(d.name.trim(), `${d.name} (${d.driverType || '正更'} - ${d.phone || ''})`);
+            });
+            rosterRecords.forEach(r => {
+                if (r.name && !nameMap.has(r.name.trim())) {
+                    nameMap.set(r.name.trim(), `${r.name} (${r.driverType || '正更'})`);
+                }
+            });
+
+            datalist.innerHTML = Array.from(nameMap.keys())
+                .map(name => `<option value="${escapeHTML(name)}">${escapeHTML(nameMap.get(name))}</option>`)
+                .join('');
+        };
+
+        window.autoFillDriverFromDB = function(inputName) {
+            const trimmed = (inputName || '').trim();
+            if (!trimmed) return;
+            const matched = driversDb.find(d => (d.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+            if (matched) {
+                const phoneInput = document.getElementById('driverPhone');
+                if (phoneInput && matched.phone) phoneInput.value = matched.phone;
+                document.querySelectorAll('input[name="driverType"]').forEach(radio => {
+                    radio.checked = (radio.value === (matched.driverType || '正更'));
+                });
+            }
+        };
+
+        // 司機資料庫操作
+        window.handleSaveDriverDB = function(e) {
+            e.preventDefault();
+            const name = document.getElementById('dbDriverName').value.trim();
+            const phone = document.getElementById('dbDriverPhone').value.trim();
+            const typeRadio = document.querySelector('input[name="dbDriverType"]:checked');
+            const editingId = document.getElementById('editingDbDriverId').value;
+            const syncRoster = document.getElementById('syncRosterCheckbox').checked;
+            const driverType = typeRadio ? typeRadio.value : '正更';
+
+            if (!name || !phone) {
+                showToast('請輸入司機姓名及電話', 'warning');
+                return;
+            }
+
+            if (editingId) {
+                const idx = driversDb.findIndex(d => d.id === editingId);
+                if (idx !== -1) {
+                    const oldName = driversDb[idx].name;
+                    driversDb[idx] = { ...driversDb[idx], name, phone, driverType };
+                    if (syncRoster) {
+                        rosterRecords = rosterRecords.map(rec => {
+                            if ((rec.name || '').trim() === (oldName || '').trim() || (rec.name || '').trim() === name) {
+                                return { ...rec, name, phone, driverType };
+                            }
+                            return rec;
+                        });
+                    }
+                    showToast(`已更新「${name}」並同步至雲端！`, 'success');
+                }
+                window.cancelDbEdit();
+            } else {
+                driversDb.unshift({
+                    id: 'drv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    name, phone, driverType, createdAt: Date.now()
+                });
+                showToast(`已新增「${name}」至雲端資料庫！`, 'success');
+                document.getElementById('dbDriverName').value = '';
+                document.getElementById('dbDriverPhone').value = '';
+            }
+
+            syncToCloud();
+            renderDriversDB();
             updateDriverSuggestions();
         };
 
-        // 分頁切換
-        function switchTab(tab) {
-            const rosterContent = document.getElementById('tab-roster-content');
-            const driversContent = document.getElementById('tab-drivers-content');
-            const rosterBtn = document.getElementById('tab-roster-btn');
-            const driversBtn = document.getElementById('tab-drivers-btn');
-
-            if (tab === 'roster') {
-                rosterContent.classList.remove('hidden');
-                driversContent.classList.add('hidden');
-                rosterBtn.className = "px-4 py-2 rounded-lg font-medium text-sm transition-all bg-white text-blue-900 shadow";
-                driversBtn.className = "px-4 py-2 rounded-lg font-medium text-sm transition-all text-blue-100 hover:text-white";
-                renderAll();
-            } else {
-                driversContent.classList.remove('hidden');
-                rosterContent.classList.add('hidden');
-                driversBtn.className = "px-4 py-2 rounded-lg font-medium text-sm transition-all bg-white text-blue-900 shadow";
-                rosterBtn.className = "px-4 py-2 rounded-lg font-medium text-sm transition-all text-blue-100 hover:text-white";
-                renderDriversList();
-            }
-        }
-
-        // 自動建議選單更新
-        function updateDriverSuggestions() {
-            const datalist = document.getElementById('driver-suggestions');
-            datalist.innerHTML = '';
-            driversDb.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d.name;
-                datalist.appendChild(opt);
+        window.editDbDriver = function(id) {
+            const drv = driversDb.find(d => d.id === id);
+            if (!drv) return;
+            document.getElementById('editingDbDriverId').value = drv.id;
+            document.getElementById('dbDriverName').value = drv.name || '';
+            document.getElementById('dbDriverPhone').value = drv.phone || '';
+            document.querySelectorAll('input[name="dbDriverType"]').forEach(r => {
+                r.checked = (r.value === (drv.driverType || '正更'));
             });
-            document.getElementById('driver-badge').innerText = driversDb.length;
-        }
-
-        // 選擇司機時自動填入電話與身份
-        function autofillDriverInfo(name) {
-            const found = driversDb.find(d => d.name === name);
-            if (found) {
-                if (found.phone) document.getElementById('input-phone').value = found.phone;
-                if (found.shiftType) document.getElementById('input-shift-type').value = found.shiftType;
-            }
-        }
-
-        // 排序規則：優先 (正更 > 替更) > 次排序 (A-Z)
-        function sortRecords(arr) {
-            return arr.sort((a, b) => {
-                if (a.shiftType === '正更' && b.shiftType !== '正更') return -1;
-                if (a.shiftType !== '正更' && b.shiftType === '正更') return 1;
-                return a.name.localeCompare(b.name, 'zh-HK');
-            });
-        }
-
-        // 渲染全部
-        function renderAll() {
-            renderRosterList();
-            renderNotesList();
-            updateDriverSuggestions();
-        }
-
-        // 渲染排班清單
-        function renderRosterList() {
-            const listEl = document.getElementById('roster-list');
-            const filterDay = document.getElementById('filter-day').value;
-            const filterShift = document.getElementById('filter-shift').value;
-
-            let filtered = rosterRecords.filter(r => {
-                if (filterDay !== 'ALL' && r.day !== filterDay) return false;
-                if (filterShift !== 'ALL' && r.shiftType !== filterShift) return false;
-                return true;
-            });
-
-            filtered = sortRecords(filtered);
-            document.getElementById('record-count').innerText = `共 ${filtered.length} 項`;
-
-            if (filtered.length === 0) {
-                listEl.innerHTML = `<div class="text-center py-8 text-gray-400 text-sm bg-gray-50/50 rounded-xl border border-dashed border-gray-200">暫無符合條件的排班紀錄</div>`;
-                return;
-            }
-
-            listEl.innerHTML = filtered.map((r, index) => {
-                const actualIndex = rosterRecords.indexOf(r);
-                const isPos = r.shiftType === '正更';
-                return `
-                    <div class="bg-gray-50/80 hover:bg-gray-50 border border-gray-200/80 rounded-xl p-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition">
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2">
-                                <span class="px-2 py-0.5 rounded text-xs font-semibold ${isPos ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">${r.shiftType}</span>
-                                <span class="font-bold text-gray-800">${r.name}</span>
-                                <span class="text-xs bg-gray-200/80 text-gray-700 px-2 py-0.5 rounded">${r.day}</span>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                                ${r.phone ? `<span><i class="fa-solid fa-phone text-gray-400 mr-1"></i>${r.phone}</span>` : ''}
-                                ${r.leaveDate ? `<span class="text-rose-600 bg-rose-50 px-2 py-0.5 rounded"><i class="fa-solid fa-plane-departure mr-1"></i>放假: ${r.leaveDate}</span>` : ''}
-                                ${r.priorityDate ? `<span class="text-amber-600 bg-amber-50 px-2 py-0.5 rounded"><i class="fa-solid fa-star mr-1"></i>優先: ${r.priorityDate}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-2 self-end sm:self-center">
-                            ${r.phone ? `<a href="https://wa.me/852${r.phone.replace(/[^0-9]/g,'')}" target="_blank" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-2 rounded-lg text-xs transition" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
-                            <button onclick="editRecord(${actualIndex})" class="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-medium transition">修改</button>
-                            <button onclick="deleteRecord(${actualIndex})" class="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-medium transition">刪除</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // 渲染備註清單
-        function renderNotesList() {
-            const listEl = document.getElementById('notes-list');
-            document.getElementById('note-count').innerText = `共 ${notesRecords.length} 項`;
-
-            if (notesRecords.length === 0) {
-                listEl.innerHTML = `<div class="text-center py-8 text-gray-400 text-sm bg-gray-50/50 rounded-xl border border-dashed border-gray-200">暫無備註記事</div>`;
-                return;
-            }
-
-            listEl.innerHTML = notesRecords.map((n, index) => {
-                return `
-                    <div class="bg-amber-50/40 hover:bg-amber-50/70 border border-amber-200/60 rounded-xl p-3.5 space-y-2 transition">
-                        <div class="flex justify-between items-start">
-                            <div class="flex items-center gap-2">
-                                ${n.driver ? `<span class="bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded"><i class="fa-solid fa-user mr-1"></i>${n.driver}</span>` : ''}
-                                ${(n.startDate || n.endDate) ? `<span class="text-xs text-gray-500 bg-white px-2 py-0.5 rounded border border-amber-100"><i class="fa-regular fa-calendar mr-1"></i>${n.startDate \vert{}\vert{} '即日起'} ~ ${n.endDate || '另行通知'}</span>` : ''}
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <button onclick="editNote(${index})" class="text-xs text-blue-600 hover:bg-blue-50 px-2 py-1 rounded">修改</button>
-                                <button onclick="deleteNote(${index})" class="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded">刪除</button>
-                            </div>
-                        </div>
-                        <p class="text-sm text-gray-700 whitespace-pre-wrap">${n.content}</p>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // 儲存排班紀錄
-        function saveRecord() {
-            const editIndex = parseInt(document.getElementById('edit-index').value);
-            const day = document.getElementById('input-day').value;
-            const name = document.getElementById('input-name').value.trim();
-            const shiftType = document.getElementById('input-shift-type').value;
-            const phone = document.getElementById('input-phone').value.trim();
-            const leaveDate = document.getElementById('input-leave-date').value;
-            const priorityDate = document.getElementById('input-priority-date').value;
-
-            if (!name) {
-                alert('請輸入司機姓名');
-                return;
-            }
-
-            const recordData = { day, name, shiftType, phone, leaveDate, priorityDate };
-
-            if (editIndex === -1) {
-                rosterRecords.push(recordData);
-            } else {
-                rosterRecords[editIndex] = recordData;
-                cancelEdit();
-            }
-
-            saveAllData();
-            clearRecordForm();
-            renderAll();
-        }
-
-        function clearRecordForm() {
-            document.getElementById('input-name').value = '';
-            document.getElementById('input-phone').value = '';
-            document.getElementById('input-leave-date').value = '';
-            document.getElementById('input-priority-date').value = '';
-        }
-
-        function editRecord(index) {
-            const r = rosterRecords[index];
-            document.getElementById('edit-index').value = index;
-            document.getElementById('input-day').value = r.day;
-            document.getElementById('input-name').value = r.name;
-            document.getElementById('input-shift-type').value = r.shiftType;
-            document.getElementById('input-phone').value = r.phone || '';
-            document.getElementById('input-leave-date').value = r.leaveDate || '';
-            document.getElementById('input-priority-date').value = r.priorityDate || '';
-
-            document.getElementById('form-title').innerHTML = `<i class="fa-solid fa-user-pen text-blue-600"></i> 修改排班紀錄`;
-            document.getElementById('form-btn-text').innerText = '確認修改紀錄';
-            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            document.getElementById('dbFormTitle').textContent = '修改司機資料';
+            document.getElementById('cancelDbEditBtn').classList.remove('hidden');
+            document.getElementById('syncRosterOptionBox').classList.remove('hidden');
+            document.getElementById('dbSubmitText').textContent = '儲存修改';
             window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        };
 
-        function cancelEdit() {
-            document.getElementById('edit-index').value = '-1';
-            clearRecordForm();
-            document.getElementById('form-title').innerHTML = `<i class="fa-solid fa-user-plus text-blue-600"></i> 新增排班紀錄`;
-            document.getElementById('form-btn-text').innerText = '確認新增紀錄';
-            document.getElementById('cancel-edit-btn').classList.add('hidden');
-        }
+        window.cancelDbEdit = function() {
+            document.getElementById('editingDbDriverId').value = '';
+            document.getElementById('dbDriverName').value = '';
+            document.getElementById('dbDriverPhone').value = '';
+            document.querySelector('input[name="dbDriverType"][value="正更"]').checked = true;
+            document.getElementById('dbFormTitle').textContent = '新增司機至資料庫';
+            document.getElementById('cancelDbEditBtn').classList.add('hidden');
+            document.getElementById('syncRosterOptionBox').classList.add('hidden');
+            document.getElementById('dbSubmitText').textContent = '加入司機資料庫';
+        };
 
-        function deleteRecord(index) {
-            if (confirm('確定要刪除這筆排班紀錄嗎？')) {
-                rosterRecords.splice(index, 1);
-                saveAllData();
-                renderAll();
-            }
-        }
+        window.deleteDbDriver = function(id) {
+            const drv = driversDb.find(d => d.id === id);
+            if (!drv) return;
+            showConfirmDialog(`確定刪除司機「${drv.name}」？`, () => {
+                driversDb = driversDb.filter(d => d.id !== id);
+                syncToCloud();
+                renderDriversDB();
+                updateDriverSuggestions();
+                showToast('已從雲端刪除', 'success');
+            });
+        };
 
-        // 儲存備註
-        function saveNote() {
-            const editIndex = parseInt(document.getElementById('edit-note-index').value);
-            const driver = document.getElementById('note-driver').value.trim();
-            const startDate = document.getElementById('note-start-date').value;
-            const endDate = document.getElementById('note-end-date').value;
-            const content = document.getElementById('note-content').value.trim();
+        window.importDriversFromRoster = function() {
+            let addedCount = 0;
+            const existingNames = new Set(driversDb.map(d => (d.name || '').trim().toLowerCase()));
 
-            if (!content) {
-                alert('請輸入備註內容');
-                return;
-            }
-
-            const noteData = { driver, startDate, endDate, content };
-
-            if (editIndex === -1) {
-                notesRecords.push(noteData);
-            } else {
-                notesRecords[editIndex] = noteData;
-                cancelNoteEdit();
-            }
-
-            saveAllData();
-            clearNoteForm();
-            renderAll();
-        }
-
-        function clearNoteForm() {
-            document.getElementById('note-driver').value = '';
-            document.getElementById('note-start-date').value = '';
-            document.getElementById('note-end-date').value = '';
-            document.getElementById('note-content').value = '';
-        }
-
-        function editNote(index) {
-            const n = notesRecords[index];
-            document.getElementById('edit-note-index').value = index;
-            document.getElementById('note-driver').value = n.driver || '';
-            document.getElementById('note-start-date').value = n.startDate || '';
-            document.getElementById('note-end-date').value = n.endDate || '';
-            document.getElementById('note-content').value = n.content;
-
-            document.getElementById('note-form-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 修改備註記事`;
-            document.getElementById('note-btn-text').innerText = '確認修改備註';
-            document.getElementById('cancel-note-btn').classList.remove('hidden');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function cancelNoteEdit() {
-            document.getElementById('edit-note-index').value = '-1';
-            clearNoteForm();
-            document.getElementById('note-form-title').innerHTML = `<i class="fa-solid fa-note-sticky text-amber-500"></i> 新增備註與交接`;
-            document.getElementById('note-btn-text').innerText = '儲存備註記事';
-            document.getElementById('cancel-note-btn').classList.add('hidden');
-        }
-
-        function deleteNote(index) {
-            if (confirm('確定要刪除這則備註嗎？')) {
-                notesRecords.splice(index, 1);
-                saveAllData();
-                renderAll();
-            }
-        }
-
-        // ================= 司機資料庫邏輯 =================
-        function setDriverFilter(type) {
-            driverFilterTab = type;
-            document.getElementById('dfilter-all').className = type === 'ALL' ? 'px-3 py-1.5 rounded-lg bg-white shadow-sm text-blue-900 transition' : 'px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900 transition';
-            document.getElementById('dfilter-pos').className = type === '正更' ? 'px-3 py-1.5 rounded-lg bg-white shadow-sm text-blue-900 transition' : 'px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900 transition';
-            document.getElementById('dfilter-rel' ).className = type === '替更' ? 'px-3 py-1.5 rounded-lg bg-white shadow-sm text-blue-900 transition' : 'px-3 py-1.5 rounded-lg text-gray-600 hover:text-gray-900 transition';
-            renderDriversList();
-        }
-
-        function renderDriversList() {
-            const gridEl = document.getElementById('drivers-grid');
-            const searchVal = document.getElementById('driver-search-input').value.toLowerCase();
-
-            let filtered = driversDb.filter(d => {
-                if (driverFilterTab !== 'ALL' && d.shiftType !== driverFilterTab) return false;
-                if (searchVal && !d.name.toLowerCase().includes(searchVal) && !d.phone.includes(searchVal)) return false;
-                return true;
+            rosterRecords.forEach(rec => {
+                const name = (rec.name || '').trim();
+                const phone = (rec.phone || '').trim();
+                const driverType = rec.driverType || '正更';
+                if (name && !existingNames.has(name.toLowerCase())) {
+                    existingNames.add(name.toLowerCase());
+                    driversDb.push({
+                        id: 'drv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        name, phone, driverType, createdAt: Date.now()
+                    });
+                    addedCount++;
+                }
             });
 
-            // 正更排先，次排序 A-Z
+            if (addedCount > 0) {
+                syncToCloud();
+                renderDriversDB();
+                updateDriverSuggestions();
+                showToast(`成功從排班表匯入 ${addedCount} 位新司機至雲端！`, 'success');
+            } else {
+                showToast('沒有發現新司機可匯入', 'info');
+            }
+        };
+
+        window.setDbFilterType = function(type) {
+            dbFilterType = type;
+            document.querySelectorAll('.db-type-btn').forEach(btn => {
+                if (btn.getAttribute('data-dbtype') === type) {
+                    btn.className = 'db-type-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition';
+                } else {
+                    btn.className = 'db-type-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition';
+                }
+            });
+            renderDriversDB();
+        };
+
+        window.renderDriversDB = function() {
+            const keyword = (document.getElementById('dbSearchInput')?.value || '').trim().toLowerCase();
+            const mobileList = document.getElementById('mobileDbList');
+            const desktopBody = document.getElementById('desktopDbBody');
+            const emptyState = document.getElementById('dbEmptyState');
+            const countBadge = document.getElementById('dbCountBadge');
+
+            let filtered = driversDb.filter(drv => {
+                const matchKw = !keyword || (drv.name && drv.name.toLowerCase().includes(keyword)) || (drv.phone && drv.phone.includes(keyword));
+                const matchType = (dbFilterType === 'ALL') || ((drv.driverType || '正更') === dbFilterType);
+                return matchKw && matchType;
+            });
+
             filtered.sort((a, b) => {
-                if (a.shiftType === '正更' && b.shiftType !== '正更') return -1;
-                if (a.shiftType !== '正更' && b.shiftType === '正更') return 1;
-                return a.name.localeCompare(b.name, 'zh-HK');
+                const typeA = (a.driverType || '正更') === '正更' ? 0 : 1;
+                const typeB = (b.driverType || '正更') === '正更' ? 0 : 1;
+                if (typeA !== typeB) return typeA - typeB;
+                return (a.name || '').trim().localeCompare((b.name || '').trim(), 'zh-HK');
             });
 
-            document.getElementById('driver-total-count').innerText = `共 ${filtered.length} 位司機`;
+            if (countBadge) countBadge.textContent = `共 ${filtered.length} 人`;
+            if (emptyState) {
+                if (filtered.length === 0) emptyState.classList.remove('hidden');
+                else emptyState.classList.add('hidden');
+            }
 
-            if (filtered.length === 0) {
-                gridEl.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 text-sm bg-gray-50/50 rounded-xl border border-dashed border-gray-200">司機資料庫暫無記錄</div>`;
+            if (mobileList) {
+                mobileList.innerHTML = filtered.map(drv => {
+                    const isZhengGeng = (drv.driverType || '正更') === '正更';
+                    const typeBadge = isZhengGeng ? '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
+                    return `
+                        <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2"><span class="font-bold text-slate-900">${escapeHTML(drv.name)}</span>${typeBadge}</div>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="editDbDriver('${drv.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button onclick="deleteDbDriver('${drv.id}')" class="text-slate-400 hover:text-rose-600 p-1.5"><i class="fa-solid fa-trash-can"></i></button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                                <a href="tel:${escapeHTML(drv.phone)}" class="text-sm font-mono font-semibold text-slate-700 hover:text-blue-600">${escapeHTML(drv.phone)}</a>
+                                <a href="${getWhatsAppUrl(drv.phone)}" target="_blank" class="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            if (desktopBody) {
+                desktopBody.innerHTML = filtered.map(drv => {
+                    const isZhengGeng = (drv.driverType || '正更') === '正更';
+                    const typeBadge = isZhengGeng ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
+                    return `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-5 py-3.5 font-bold text-slate-900">${escapeHTML(drv.name)}</td>
+                            <td class="px-5 py-3.5">${typeBadge}</td>
+                            <td class="px-5 py-3.5">
+                                <div class="flex items-center gap-2">
+                                    <a href="tel:${escapeHTML(drv.phone)}" class="font-mono text-slate-700 hover:text-blue-600">${escapeHTML(drv.phone)}</a>
+                                    <a href="${getWhatsAppUrl(drv.phone)}" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+                                </div>
+                            </td>
+                            <td class="px-5 py-3.5 text-right">
+                                <button onclick="editDbDriver('${drv.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
+                                <button onclick="deleteDbDriver('${drv.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-trash-can"></i> 刪除</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        };
+
+        // 排班紀錄與備註邏輯
+        window.selectAllDays = function(checked) {
+            document.querySelectorAll('input[name="workDays"]').forEach(cb => cb.checked = checked);
+        };
+
+        window.handleAddRecord = function(e) {
+            e.preventDefault();
+            const name = document.getElementById('driverName').value.trim();
+            const phone = document.getElementById('driverPhone').value.trim();
+            const driverType = document.querySelector('input[name="driverType"]:checked')?.value || '正更';
+            const shift = document.querySelector('input[name="shiftType"]:checked')?.value || '早更';
+            const days = Array.from(document.querySelectorAll('input[name="workDays"]:checked')).map(cb => cb.value);
+            const editingId = document.getElementById('editingRecordId').value;
+
+            if (!name || !phone || days.length === 0) {
+                showToast('請填寫完整資料及選擇返工日子', 'warning');
                 return;
             }
 
-            gridEl.innerHTML = filtered.map(d => {
-                const isPos = d.shiftType === '正更';
+            if (editingId) {
+                const idx = rosterRecords.findIndex(r => r.id === editingId);
+                if (idx !== -1) {
+                    rosterRecords[idx] = { ...rosterRecords[idx], name, phone, driverType, shift, days };
+                    showToast('已修改排班紀錄並同步至雲端！', 'success');
+                }
+                window.cancelEditMode();
+            } else {
+                rosterRecords.unshift({
+                    id: 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    name, phone, driverType, shift, days, createdAt: Date.now()
+                });
+                document.getElementById('driverName').value = '';
+                document.getElementById('driverPhone').value = '';
+                window.selectAllDays(false);
+                showToast('已新增排班紀錄至雲端！', 'success');
+            }
+
+            syncToCloud();
+            renderTable();
+        };
+
+        window.editRecord = function(id) {
+            const rec = rosterRecords.find(r => r.id === id);
+            if (!rec) return;
+            document.getElementById('editingRecordId').value = rec.id;
+            document.getElementById('driverName').value = rec.name || '';
+            document.getElementById('driverPhone').value = rec.phone || '';
+            document.querySelectorAll('input[name="driverType"]').forEach(r => r.checked = (r.value === (rec.driverType || '正更')));
+            document.querySelectorAll('input[name="shiftType"]').forEach(r => r.checked = (r.value === (rec.shift || '早更')));
+            document.querySelectorAll('input[name="workDays"]').forEach(cb => cb.checked = rec.days.includes(cb.value));
+
+            document.getElementById('formTitleText').textContent = '修改排班紀錄';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+            document.getElementById('submitRecordText').textContent = '儲存修改';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.cancelEditMode = function() {
+            document.getElementById('editingRecordId').value = '';
+            document.getElementById('driverName').value = '';
+            document.getElementById('driverPhone').value = '';
+            document.querySelector('input[name="driverType"][value="正更"]').checked = true;
+            document.querySelector('input[name="shiftType"][value="早更"]').checked = true;
+            window.selectAllDays(false);
+            document.getElementById('formTitleText').textContent = '加入司機排班紀錄';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+            document.getElementById('submitRecordText').textContent = '加入排班列表';
+        };
+
+        window.deleteRecord = function(id) {
+            showConfirmDialog('確定刪除此排班紀錄？', () => {
+                rosterRecords = rosterRecords.filter(r => r.id !== id);
+                syncToCloud();
+                renderTable();
+                showToast('已從雲端刪除', 'success');
+            });
+        };
+
+        window.setFilterDay = function(day) {
+            filterDay = day;
+            document.querySelectorAll('.day-filter-btn').forEach(btn => {
+                if (btn.getAttribute('data-day') === day) {
+                    btn.className = 'day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white shadow-sm transition';
+                } else {
+                    btn.className = 'day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+                }
+            });
+            renderTable();
+        };
+
+        window.setFilterShift = function(shift) {
+            filterShift = shift;
+            document.querySelectorAll('.shift-filter-btn').forEach(btn => {
+                if (btn.getAttribute('data-shift') === shift) {
+                    btn.className = 'shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition';
+                } else {
+                    btn.className = 'shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition';
+                }
+            });
+            renderTable();
+        };
+
+        window.renderTable = function() {
+            const keyword = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+            const mobileList = document.getElementById('mobileRosterList');
+            const desktopBody = document.getElementById('desktopRosterBody');
+            const emptyState = document.getElementById('emptyState');
+            const recordCountBadge = document.getElementById('recordCountBadge');
+
+            updateDriverSuggestions();
+
+            let filtered = rosterRecords.filter(rec => {
+                const matchKw = !keyword || (rec.name && rec.name.toLowerCase().includes(keyword)) || (rec.phone && rec.phone.includes(keyword));
+                const matchDay = (filterDay === 'ALL') || (rec.days && rec.days.includes(filterDay));
+                const matchShift = (filterShift === 'ALL') || (rec.shift === filterShift);
+                return matchKw && matchDay && matchShift;
+            });
+
+            filtered.sort((a, b) => {
+                const typeA = (a.driverType || '正更') === '正更' ? 0 : 1;
+                const typeB = (b.driverType || '正更') === '正更' ? 0 : 1;
+                if (typeA !== typeB) return typeA - typeB;
+                return (a.name || '').trim().localeCompare((b.name || '').trim(), 'zh-HK');
+            });
+
+            if (recordCountBadge) recordCountBadge.textContent = `共 ${filtered.length} 筆`;
+            if (emptyState) {
+                if (filtered.length === 0) emptyState.classList.remove('hidden');
+                else emptyState.classList.add('hidden');
+            }
+
+            if (mobileList) {
+                mobileList.innerHTML = filtered.map(rec => {
+                    const isZhengGeng = (rec.driverType || '正更') === '正更';
+                    const typeBadge = isZhengGeng ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800">替更</span>';
+                    const shiftBadge = rec.shift === '早更' ? '<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun"></i> 早更</span>' : '<span class="px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon"></i> 夜更</span>';
+                    const sortedDays = DAYS_ORDER.filter(d => rec.days && rec.days.includes(d));
+                    const daysHtml = sortedDays.length === 7 ? '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">全星期</span>' : sortedDays.map(d => `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">${d.replace('星期', '')}</span>`).join('');
+
+                    return `
+                        <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2"><span class="font-bold text-slate-900">${escapeHTML(rec.name)}</span>${typeBadge}${shiftBadge}</div>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="editRecord('${rec.id}')" class="text-slate-400 hover:text-indigo-600 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button onclick="deleteRecord('${rec.id}')" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-trash-can"></i></button>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-1">${daysHtml}</div>
+                            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                                <a href="tel:${escapeHTML(rec.phone)}" class="text-sm font-mono font-semibold text-slate-700"><i class="fa-solid fa-phone text-xs"></i> ${escapeHTML(rec.phone)}</a>
+                                <a href="${getWhatsAppUrl(rec.phone)}" target="_blank" class="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            if (desktopBody) {
+                desktopBody.innerHTML = filtered.map(rec => {
+                    const isZhengGeng = (rec.driverType || '正更') === '正更';
+                    const typeBadge = isZhengGeng ? '<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">替更</span>';
+                    const shiftBadge = rec.shift === '早更' ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun"></i> 早更</span>' : '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon"></i> 夜更</span>';
+                    const sortedDays = DAYS_ORDER.filter(d => rec.days && rec.days.includes(d));
+                    const daysHtml = sortedDays.length === 7 ? '<span class="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">全星期</span>' : sortedDays.map(d => `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">${d.replace('星期', '')}</span>`).join('');
+
+                    return `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-5 py-3.5 font-bold text-slate-900 flex items-center gap-2"><span>${escapeHTML(rec.name)}</span>${typeBadge}</td>
+                            <td class="px-4 py-3.5">${shiftBadge}</td>
+                            <td class="px-4 py-3.5"><div class="flex flex-wrap gap-1">${daysHtml}</div></td>
+                            <td class="px-4 py-3.5">
+                                <div class="flex items-center gap-2">
+                                    <a href="tel:${escapeHTML(rec.phone)}" class="font-mono text-slate-700">${escapeHTML(rec.phone)}</a>
+                                    <a href="${getWhatsAppUrl(rec.phone)}" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+                                </div>
+                            </td>
+                            <td class="px-5 py-3.5 text-right">
+                                <button onclick="editRecord('${rec.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
+                                <button onclick="deleteRecord('${rec.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-trash-can"></i> 刪除</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        };
+
+        // 備註與交接記事邏輯
+        window.handleSaveNote = function(e) {
+            e.preventDefault();
+            const driverName = document.getElementById('noteDriverName').value.trim();
+            const startDate = document.getElementById('noteStartDate').value;
+            const endDate = document.getElementById('noteEndDate').value;
+            const content = document.getElementById('noteContent').value.trim();
+            const editingId = document.getElementById('editingNoteId').value;
+
+            if (!content) return;
+
+            if (editingId) {
+                const idx = notesRecords.findIndex(n => n.id === editingId);
+                if (idx !== -1) {
+                    notesRecords[idx] = { ...notesRecords[idx], driverName, startDate, endDate, content };
+                    showToast('已更新備註並同步至雲端！', 'success');
+                }
+                window.cancelNoteEdit();
+            } else {
+                notesRecords.unshift({
+                    id: 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    driverName, startDate, endDate, content, createdAt: Date.now()
+                });
+                document.getElementById('noteDriverName').value = '';
+                document.getElementById('noteStartDate').value = '';
+                document.getElementById('noteEndDate').value = '';
+                document.getElementById('noteContent').value = '';
+                showToast('已新增備註至雲端！', 'success');
+            }
+
+            syncToCloud();
+            renderNotes();
+        };
+
+        window.editNote = function(id) {
+            const note = notesRecords.find(n => n.id === id);
+            if (!note) return;
+            document.getElementById('editingNoteId').value = note.id;
+            document.getElementById('noteDriverName').value = note.driverName || '';
+            document.getElementById('noteStartDate').value = note.startDate || '';
+            document.getElementById('noteEndDate').value = note.endDate || '';
+            document.getElementById('noteContent').value = note.content || '';
+            document.getElementById('cancelNoteEditBtn').classList.remove('hidden');
+            document.getElementById('noteSubmitText').textContent = '儲存修改';
+        };
+
+        window.cancelNoteEdit = function() {
+            document.getElementById('editingNoteId').value = '';
+            document.getElementById('noteDriverName').value = '';
+            document.getElementById('noteStartDate').value = '';
+            document.getElementById('noteEndDate').value = '';
+            document.getElementById('noteContent').value = '';
+            document.getElementById('cancelNoteEditBtn').classList.add('hidden');
+            document.getElementById('noteSubmitText').textContent = '新增備註';
+        };
+
+        window.deleteNote = function(id) {
+            showConfirmDialog('確定刪除此備註？', () => {
+                notesRecords = notesRecords.filter(n => n.id !== id);
+                syncToCloud();
+                renderNotes();
+                showToast('已從雲端刪除', 'success');
+            });
+        };
+
+        window.renderNotes = function() {
+            const listEl = document.getElementById('notesList');
+            const emptyEl = document.getElementById('notesEmptyState');
+            const badgeEl = document.getElementById('notesCountBadge');
+
+            if (badgeEl) badgeEl.textContent = notesRecords.length;
+            if (emptyEl) {
+                if (notesRecords.length === 0) emptyEl.classList.remove('hidden');
+                else emptyEl.classList.add('hidden');
+            }
+
+            if (!listEl) return;
+            listEl.innerHTML = notesRecords.map(note => {
+                let dateBadge = (note.startDate || note.endDate) ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900"><i class="fa-regular fa-calendar"></i> ${escapeHTML(note.startDate || '即日起')} 至 ${escapeHTML(note.endDate || '另行通知')}</span>` : '';
+                let driverBadge = note.driverName ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-white"><i class="fa-solid fa-user"></i> ${escapeHTML(note.driverName)}</span>` : '';
+
                 return `
-                    <div class="bg-gray-50/90 border border-gray-200/80 rounded-xl p-4 flex justify-between items-center gap-3">
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2">
-                                <span class="font-bold text-gray-800 text-base">${d.name}</span>
-                                <span class="px-2 py-0.5 rounded text-xs font-semibold ${isPos ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">${d.shiftType}</span>
-                            </div>
-                            <div class="text-xs text-gray-500">
-                                <i class="fa-solid fa-phone text-gray-400 mr-1"></i>${d.phone || '未填寫電話'}
+                    <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-2">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-1.5 flex-wrap">${driverBadge} ${dateBadge}</div>
+                            <div class="flex items-center gap-1">
+                                <button onclick="editNote('${note.id}')" class="text-xs text-indigo-600 px-2 py-1 hover:bg-indigo-50 rounded"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
+                                <button onclick="deleteNote('${note.id}')" class="text-xs text-rose-600 px-2 py-1 hover:bg-rose-50 rounded"><i class="fa-solid fa-trash-can"></i> 刪除</button>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1.5">
-                            ${d.phone ? `<a href="https://wa.me/852${d.phone.replace(/[^0-9]/g,'')}" target="_blank" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 p-2 rounded-lg text-xs" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
-                            <button onclick="openDriverModal('${d.id}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg text-xs font-medium">修改</button>
-                            <button onclick="deleteDriver('${d.id}')" class="bg-red-50 text-red-600 hover:bg-red-100 px-2.5 py-1.5 rounded-lg text-xs font-medium">刪除</button>
-                        </div>
+                        <p class="text-sm text-slate-800 whitespace-pre-line">${escapeHTML(note.content)}</p>
                     </div>
                 `;
             }).join('');
-        }
+        };
 
-        function openDriverModal(id = null) {
-            document.getElementById('driver-modal').classList.remove('hidden');
-            if (id) {
-                const found = driversDb.find(d => d.id === id);
-                if (found) {
-                    document.getElementById('driver-modal-title.innerHTML').innerHTML = `<i class="fa-solid fa-user-pen text-blue-600"></i> 修改司機資料`;
-                    document.getElementById('modal-driver-id').value = found.id;
-                    document.getElementById('modal-driver-name').value = found.name;
-                    document.getElementById('modal-driver-type').value = found.shiftType;
-                    document.getElementById('modal-driver-phone').value
+        initFirebase();
+    </script>
+</body>
+</html>
