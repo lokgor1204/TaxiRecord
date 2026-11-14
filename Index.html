@@ -1,0 +1,267 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>的士替更編更雲端系統</title>
+    <!-- 引入 Tailwind CSS 以進行響應式及現代化排版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts Noto Sans TC 提升繁體中文閱讀體驗 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* 自訂捲軸樣式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 頂部導航欄 (香港的士經典紅白配色點綴) -->
+    <header class="bg-red-700 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <!-- 的士圖示 SVG -->
+                <div class="bg-white text-red-700 p-2 rounded-xl shadow">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5H15V3H9v2H6.5c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-wide">的士替更編更系統</h1>
+                    <p class="text-xs text-red-100">雲端多人即時同步排班表</p>
+                </div>
+            </div>
+
+            <!-- 雲端狀態與設定說明按鈕 -->
+            <div class="flex items-center gap-2 text-xs sm:text-sm">
+                <div id="syncStatusBadge" class="flex items-center gap-1.5 bg-red-800/80 px-3 py-1.5 rounded-full border border-red-500/40">
+                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="statusText">連線雲端中...</span>
+                </div>
+                <button onclick="openSetupModal()" class="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-full transition flex items-center gap-1 font-medium">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>GitHub 設定</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 未儲存變更提示橫幅 (當有加入或刪除紀錄時自動彈出) -->
+    <div id="unsavedBanner" class="hidden bg-amber-500 text-slate-900 shadow-md sticky top-[72px] sm:top-[68px] z-20 transition-all">
+        <div class="max-w-6xl mx-auto px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-2">
+            <div class="flex items-center gap-2 font-bold text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-900 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+                <span>你有未儲存的排班更改！請按「儲存」制，其他同事先會睇到最新紀錄。</span>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button onclick="discardChanges()" class="px-3 py-1.5 rounded-lg bg-amber-600/30 hover:bg-amber-600/50 text-slate-900 font-semibold text-xs sm:text-sm transition">
+                    取消更改
+                </button>
+                <button onclick="saveToCloud()" id="bannerSaveBtn" class="px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow flex items-center gap-1.5 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>立即儲存並同步</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要內容區 -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 py-6 space-y-6">
+
+        <!-- 區塊 1：新增替更紀錄表單 -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <span class="bg-red-100 text-red-700 p-1.5 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                    </span>
+                    <span>加入新替更司機紀錄</span>
+                </h2>
+                <span class="text-xs text-slate-400 hidden sm:inline">填寫後按「加入清單」，最後記得按「儲存」同步到雲端</span>
+            </div>
+
+            <form id="addRecordForm" onsubmit="handleAddRecord(event)" class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <!-- 司機姓名 -->
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">司機人名 <span class="text-red-500">*</span></label>
+                    <input type="text" id="driverName" required placeholder="例如：陳大文 / 強哥" 
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                </div>
+
+                <!-- 電話號碼 -->
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">電話號碼 <span class="text-red-500">*</span></label>
+                    <input type="tel" id="driverPhone" required placeholder="例如：91234567" 
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
+                </div>
+
+                <!-- 每星期返幾多 (可複選星期一至日) -->
+                <div class="md:col-span-4">
+                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">每星期返星期幾 (可多選) <span class="text-red-500">*</span></label>
+                    <div class="grid grid-cols-7 gap-1" id="daysCheckboxGroup">
+                        <label class="cursor-pointer">
+                            <input type="checkbox" value="一" class="day-checkbox peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition select-none">一</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="checkbox" value="二" class="day-checkbox peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition select-none">二</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="checkbox" value="三" class="day-checkbox peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition select-none">三</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="checkbox" value="四" class="day-checkbox peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition select-none">四</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="checkbox" value="五" class="day-checkbox peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition select-none">五</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="checkbox" value="六" class="day-checkbox peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition select-none">六</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="checkbox" value="日" class="day-checkbox peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition select-none">日</div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 早更定夜更 -->
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">早更 / 夜更 <span class="text-red-500">*</span></label>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="shiftType" value="早更" checked class="peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-amber-500 peer-checked:text-white peer-checked:border-amber-500 transition select-none">☀️ 早更</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="shiftType" value="夜更" class="peer sr-only">
+                            <div class="text-center py-2 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 peer-checked:bg-indigo-600 peer-checked:text-white peer-checked:border-indigo-600 transition select-none">🌙 夜更</div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 加入按鈕 -->
+                <div class="md:col-span-12 flex justify-end pt-1">
+                    <button type="submit" class="w-full sm:w-auto px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl shadow transition flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        <span>加入清單</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- 區塊 2：排班紀錄列表與雲端儲存控制 -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6">
+            <!-- 標題與主要儲存按鈕 -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200">
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <h2 class="text-lg font-bold text-slate-800">替更司機排班表</h2>
+                        <span id="recordCountBadge" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-0.5 rounded-full">0 筆紀錄</span>
+                    </div>
+                    <p id="lastUpdatedText" class="text-xs text-slate-400 mt-1">正在讀取雲端最後儲存時間...</p>
+                </div>
+
+                <!-- 主要雲端儲存按鈕 -->
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button onclick="saveToCloud()" id="mainSaveBtn" 
+                        class="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        <span id="mainSaveBtnText">儲存紀錄並同步給所有人</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 篩選器列 (專為手機單手操作設計：8格全幅平均分佈，無需左右滑動即可一眼睇晒全部選項) -->
+            <div class="my-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 space-y-2">
+                <!-- 第一行：緊湊搜尋框 + 更份一按切換 -->
+                <div class="flex items-center gap-1.5">
+                    <div class="relative flex-1 min-w-0">
+                        <input type="text" id="searchInput" oninput="renderTable()" placeholder="🔍 搜姓名/電話" 
+                            class="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+                    </div>
+                    <!-- 更份一按切換 -->
+                    <div class="grid grid-cols-3 gap-0.5 bg-slate-200/80 p-0.5 rounded-lg shrink-0" id="shiftFilterGroup">
+                        <button type="button" onclick="setShiftFilter('ALL')" data-shift="ALL" class="shift-filter-btn px-2 py-1 rounded-md text-xs font-bold bg-white text-slate-900 shadow-sm transition">全部</button>
+                        <button type="button" onclick="setShiftFilter('早更')" data-shift="早更" class="shift-filter-btn px-2 py-1 rounded-md text-xs font-bold text-slate-600 hover:text-slate-900 transition">☀️早</button>
+                        <button type="button" onclick="setShiftFilter('夜更')" data-shift="夜更" class="shift-filter-btn px-2 py-1 rounded-md text-xs font-bold text-slate-600 hover:text-slate-900 transition">🌙夜</button>
+                    </div>
+                </div>
+
+                <!-- 第二行：星期一至日 8格平均分佈 (100% 貼合手機寬度，絕不左右捲動) -->
+                <div class="grid grid-cols-8 gap-1" id="dayFilterGroup">
+                    <button type="button" onclick="setDayFilter('ALL')" data-day="ALL" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white shadow-sm text-center transition">全</button>
+                    <button type="button" onclick="setDayFilter('一')" data-day="一" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition">一</button>
+                    <button type="button" onclick="setDayFilter('二')" data-day="二" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition">二</button>
+                    <button type="button" onclick="setDayFilter('三')" data-day="三" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition">三</button>
+                    <button type="button" onclick="setDayFilter('四')" data-day="四" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition">四</button>
+                    <button type="button" onclick="setDayFilter('五')" data-day="五" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition">五</button>
+                    <button type="button" onclick="setDayFilter('六')" data-day="六" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition">六</button>
+                    <button type="button" onclick="setDayFilter('日')" data-day="日" class="day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition">日</button>
+                </div>
+            </div>
+
+            <!-- 手機版專屬卡片清單 (在手機螢幕上免左右拉動，一眼睇晒所有資訊) -->
+            <div id="mobileRosterList" class="grid grid-cols-1 gap-2.5 md:hidden">
+                <!-- 動態生成手機版卡片 -->
+            </div>
+
+            <!-- 電腦版資料表格 (在平板/電腦螢幕顯示) -->
+            <div class="hidden md:block overflow-x-auto rounded-xl border border-slate-200">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200">
+                            <th class="py-3.5 px-4 font-bold">司機姓名</th>
+                            <th class="py-3.5 px-4 font-bold">電話號碼</th>
+                            <th class="py-3.5 px-4 font-bold">每星期返工日</th>
+                            <th class="py-3.5 px-4 font-bold">更份</th>
+                            <th class="py-3.5 px-4 font-bold text-right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rosterTableBody" class="divide-y divide-slate-200 text-sm">
+                        <!-- 動態生成內容 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 無資料狀態提示 -->
+            <div id="emptyState" class="hidden text-center py-12 px-4">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100 text-slate-400 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 
