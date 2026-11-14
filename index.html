@@ -90,6 +90,20 @@
                     </div>
 
                     <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">司機身份 <span class="text-rose-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50/50 has-[:checked]:text-blue-900 font-semibold text-xs">
+                                <input type="radio" name="driverType" value="正更" checked class="text-blue-600 focus:ring-blue-500">
+                                <i class="fa-solid fa-id-card text-blue-500"></i> 正更司機
+                            </label>
+                            <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50/50 has-[:checked]:text-purple-900 font-semibold text-xs">
+                                <input type="radio" name="driverType" value="替更" class="text-purple-600 focus:ring-purple-500">
+                                <i class="fa-solid fa-user-clock text-purple-500"></i> 替更司機
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1.5">更份選擇 <span class="text-rose-500">*</span></label>
                         <div class="grid grid-cols-2 gap-2">
                             <label class="flex items-center justify-center gap-2 p-2.5 border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/50 has-[:checked]:text-amber-900 font-semibold text-xs">
@@ -216,7 +230,7 @@
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
             <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，更新網頁程式碼絕不影響現有紀錄。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.4.4</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.5.0</p>
         </div>
     </footer>
 
@@ -380,12 +394,14 @@
             const phoneInput = document.getElementById('driverPhone');
             const dayCheckboxes = document.querySelectorAll('input[name="workDay"]:checked');
             const shiftRadio = document.querySelector('input[name="shiftType"]:checked');
+            const typeRadio = document.querySelector('input[name="driverType"]:checked');
             const editingId = document.getElementById('editingRecordId').value;
 
             const name = nameInput.value.trim();
             const phone = phoneInput.value.trim();
             const days = Array.from(dayCheckboxes).map(cb => cb.value);
             const shift = shiftRadio ? shiftRadio.value : '早更';
+            const driverType = typeRadio ? typeRadio.value : '正更';
 
             if (!name || !phone) {
                 showToast('請輸入司機姓名及電話號碼', 'warning');
@@ -405,7 +421,8 @@
                         name,
                         phone,
                         days,
-                        shift
+                        shift,
+                        driverType
                     };
                     showToast(`已成功更新「${name}」的紀錄，記得按「儲存」同步！`, 'success');
                 }
@@ -418,6 +435,7 @@
                     phone,
                     days,
                     shift,
+                    driverType,
                     createdAt: Date.now()
                 };
 
@@ -439,6 +457,12 @@
             document.getElementById('driverName').value = rec.name || '';
             document.getElementById('driverPhone').value = rec.phone || '';
             document.getElementById('editingRecordId').value = rec.id;
+
+            // 設定司機身份 (正更/替更)
+            const typeRadios = document.querySelectorAll('input[name="driverType"]');
+            typeRadios.forEach(radio => {
+                radio.checked = (radio.value === (rec.driverType || '正更'));
+            });
 
             // 設定更份
             const shiftRadios = document.querySelectorAll('input[name="shiftType"]');
@@ -469,6 +493,7 @@
             document.getElementById('editingRecordId').value = '';
             document.querySelectorAll('input[name="workDay"]').forEach(cb => cb.checked = false);
             document.querySelector('input[name="shiftType"][value="早更"]').checked = true;
+            document.querySelector('input[name="driverType"][value="正更"]').checked = true;
 
             document.getElementById('formTitleText').textContent = '加入替更司機紀錄';
             document.getElementById('cancelEditBtn').classList.add('hidden');
@@ -477,74 +502,65 @@
         };
 
         window.deleteRecord = function(id) {
-            const target = localRecords.find(r => r.id === id);
-            localRecords = localRecords.filter(r => r.id !== id);
-            updateUnsavedUI(true);
-            renderTable();
-            if (target) {
-                showToast(`已移除「${target.name}」，記得按「儲存」確認刪除！`, 'warning');
-            }
-        };
+            const rec = localRecords.find(r => r.id === id);
+            if (!rec) return;
 
-        window.discardChanges = function() {
-            localRecords = JSON.parse(JSON.stringify(cloudRecords));
-            updateUnsavedUI(false);
-            renderTable();
-            showToast('已還原為雲端最新儲存版本', 'info');
+            if (confirm(`確定要刪除「${rec.name}」的紀錄嗎？`)) {
+                localRecords = localRecords.filter(r => r.id !== id);
+                updateUnsavedUI(true);
+                renderTable();
+                showToast(`已從暫存列表移除「${rec.name}」，記得按「儲存」同步！`, 'warning');
+            }
         };
 
         window.saveToCloud = async function() {
             if (isSaving) return;
-
-            if (!currentUser || !rosterDocRef) {
-                showToast('雲端尚未連線完成，請稍等幾秒見頂部變綠色後再試！', 'error');
-                return;
-            }
-
             isSaving = true;
-            const mainBtn = document.getElementById('mainSaveBtn');
-            const mainBtnText = document.getElementById('mainSaveBtnText');
-            const bannerBtn = document.getElementById('bannerSaveBtn');
-            const bannerBtnText = bannerBtn ? bannerBtn.querySelector('span') : null;
-            
-            mainBtn.disabled = true;
-            if (bannerBtn) bannerBtn.disabled = true;
-            mainBtnText.textContent = '儲存中...';
-            if (bannerBtnText) bannerBtnText.textContent = '儲存中...';
+            const saveBtnText = document.getElementById('mainSaveBtnText');
+            const bannerSaveBtn = document.getElementById('bannerSaveBtn');
+            if (saveBtnText) saveBtnText.textContent = '儲存中...';
+            if (bannerSaveBtn) bannerSaveBtn.disabled = true;
 
             try {
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('連線超時（超過12秒）。請檢查網絡連線，或確認 Firebase Firestore 資料庫已建立並開啟讀寫權限！')), 12000)
+                );
+
                 const savePromise = setDoc(rosterDocRef, {
                     records: localRecords,
                     updatedAt: Date.now(),
-                    updatedBy: currentUser.uid
-                });
-
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('連線超時（超過12秒）。請檢查網絡連線，或確認 Firebase Firestore 資料庫已建立並開啟讀寫權限！')), 12000);
+                    updatedBy: currentUser ? currentUser.uid : 'anonymous'
                 });
 
                 await Promise.race([savePromise, timeoutPromise]);
 
                 cloudRecords = JSON.parse(JSON.stringify(localRecords));
                 updateUnsavedUI(false);
-                renderTable();
-                showToast('✅ 成功儲存至雲端！所有同事依家都睇到最新紀錄。', 'success');
+                showToast('成功儲存並同步至雲端！所有同事都睇到最新紀錄了。', 'success');
             } catch (error) {
                 console.error("儲存失敗:", error);
-                showToast('❌ 儲存失敗：' + error.message, 'error');
+                showToast('儲存失敗：' + error.message, 'error');
             } finally {
                 isSaving = false;
-                mainBtn.disabled = false;
-                if (bannerBtn) bannerBtn.disabled = false;
-                mainBtnText.textContent = '儲存紀錄並同步給所有人';
-                if (bannerBtnText) bannerBtnText.textContent = '立即儲存並同步';
+                if (saveBtnText) saveBtnText.textContent = '儲存紀錄並同步給所有人';
+                if (bannerSaveBtn) bannerSaveBtn.disabled = false;
+            }
+        };
+
+        window.discardChanges = function() {
+            if (confirm('確定放棄所有未儲存的更改並還原至雲端最新版本嗎？')) {
+                localRecords = JSON.parse(JSON.stringify(cloudRecords));
+                window.cancelEditMode();
+                updateUnsavedUI(false);
+                renderTable();
+                showToast('已還原至雲端最新版本', 'info');
             }
         };
 
         window.setFilterDay = function(day) {
             filterDay = day;
             document.querySelectorAll('.day-filter-btn').forEach(btn => {
-                if (btn.dataset.day === day) {
+                if (btn.getAttribute('data-day') === day) {
                     btn.className = 'day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-bold bg-red-600 text-white shadow-sm transition truncate text-center';
                 } else {
                     btn.className = 'day-filter-btn py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition truncate text-center';
@@ -556,7 +572,7 @@
         window.setFilterShift = function(shift) {
             filterShift = shift;
             document.querySelectorAll('.shift-filter-btn').forEach(btn => {
-                if (btn.dataset.shift === shift) {
+                if (btn.getAttribute('data-shift') === shift) {
                     btn.className = 'shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition';
                 } else {
                     btn.className = 'shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition';
@@ -566,47 +582,50 @@
         };
 
         function getWhatsAppUrl(phone) {
-            const digits = String(phone || '').replace(/\D/g, '');
-            if (!digits) return '#';
-            const fullNumber = digits.length === 8 ? '852' + digits : digits;
-            return `https://wa.me/${fullNumber}`;
+            let cleanPhone = String(phone || '').replace(/\D/g, '');
+            if (cleanPhone.length === 8) {
+                cleanPhone = '852' + cleanPhone;
+            }
+            return `https://wa.me/${cleanPhone}`;
         }
 
         window.renderTable = function() {
             const searchInput = document.getElementById('searchInput');
-            const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
-
-            const filtered = localRecords.filter(rec => {
-                const matchQuery = !query || 
-                    (rec.name && rec.name.toLowerCase().includes(query)) || 
-                    (rec.phone && rec.phone.toLowerCase().includes(query));
-                const matchDay = filterDay === 'ALL' || (Array.isArray(rec.days) && rec.days.includes(filterDay));
-                const matchShift = filterShift === 'ALL' || rec.shift === filterShift;
-                return matchQuery && matchDay && matchShift;
-            });
-
-            const countBadge = document.getElementById('recordCountBadge');
-            if (countBadge) {
-                countBadge.textContent = `共 ${filtered.length} 筆`;
-            }
-
+            const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
             const mobileList = document.getElementById('mobileRosterList');
             const desktopBody = document.getElementById('desktopRosterBody');
             const emptyState = document.getElementById('emptyState');
+            const recordCountBadge = document.getElementById('recordCountBadge');
 
-            if (filtered.length === 0) {
-                if (mobileList) mobileList.innerHTML = '';
-                if (desktopBody) desktopBody.innerHTML = '';
-                if (emptyState) emptyState.classList.remove('hidden');
-                return;
+            let filtered = localRecords.filter(rec => {
+                const matchKeyword = !keyword || 
+                    (rec.name && rec.name.toLowerCase().includes(keyword)) || 
+                    (rec.phone && rec.phone.includes(keyword));
+                const matchShift = (filterShift === 'ALL') || (rec.shift === filterShift);
+                const matchDay = (filterDay === 'ALL') || (rec.days && rec.days.includes(filterDay));
+                return matchKeyword && matchShift && matchDay;
+            });
+
+            if (recordCountBadge) {
+                recordCountBadge.textContent = `共 ${filtered.length} 筆`;
             }
 
-            if (emptyState) emptyState.classList.add('hidden');
+            if (emptyState) {
+                if (filtered.length === 0) {
+                    emptyState.classList.remove('hidden');
+                } else {
+                    emptyState.classList.add('hidden');
+                }
+            }
 
             if (mobileList) {
                 mobileList.innerHTML = filtered.map(rec => {
                     const isUnsaved = !cloudRecords.some(c => c.id === rec.id);
                     const sortedDays = (rec.days || []).slice().sort((a, b) => DAYS_ORDER.indexOf(a) - DAYS_ORDER.indexOf(b));
+                    const isZhengGeng = (rec.driverType || '正更') === '正更';
+                    const typeBadge = isZhengGeng
+                        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200"><i class="fa-solid fa-id-card text-blue-500"></i> 正更</span>'
+                        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200"><i class="fa-solid fa-user-clock text-purple-500"></i> 替更</span>';
                     const shiftBadge = rec.shift === '早更'
                         ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200"><i class="fa-solid fa-sun text-amber-500"></i> 早更</span>'
                         : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200"><i class="fa-solid fa-moon text-indigo-500"></i> 夜更</span>';
@@ -614,12 +633,13 @@
                     return `
                         <div class="bg-white rounded-xl p-3.5 shadow-sm border ${isUnsaved ? 'border-amber-400 bg-amber-50/30' : 'border-slate-200'} flex flex-col gap-2.5">
                             <div class="flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-2 min-w-0">
+                                <div class="flex items-center gap-2 min-w-0 flex-wrap">
                                     <span class="font-bold text-slate-900 text-base truncate">${escapeHTML(rec.name)}</span>
+                                    ${typeBadge}
                                     ${shiftBadge}
                                     ${isUnsaved ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">未儲存</span>' : ''}
                                 </div>
-                                <div class="flex items-center gap-1">
+                                <div class="flex items-center gap-1 shrink-0">
                                     <button onclick="editRecord('${rec.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition" title="修改紀錄">
                                         <i class="fa-solid fa-pen-to-square"></i>
                                     </button>
@@ -650,6 +670,10 @@
                 desktopBody.innerHTML = filtered.map(rec => {
                     const isUnsaved = !cloudRecords.some(c => c.id === rec.id);
                     const sortedDays = (rec.days || []).slice().sort((a, b) => DAYS_ORDER.indexOf(a) - DAYS_ORDER.indexOf(b));
+                    const isZhengGeng = (rec.driverType || '正更') === '正更';
+                    const typeBadge = isZhengGeng
+                        ? '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200"><i class="fa-solid fa-id-card text-blue-500"></i> 正更</span>'
+                        : '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200"><i class="fa-solid fa-user-clock text-purple-500"></i> 替更</span>';
                     const shiftBadge = rec.shift === '早更'
                         ? '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200"><i class="fa-solid fa-sun text-amber-500"></i> 早更</span>'
                         : '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200"><i class="fa-solid fa-moon text-indigo-500"></i> 夜更</span>';
@@ -659,6 +683,7 @@
                             <td class="px-5 py-3.5 font-bold text-slate-900">
                                 <div class="flex items-center gap-2">
                                     <span>${escapeHTML(rec.name)}</span>
+                                    ${typeBadge}
                                     ${isUnsaved ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">未儲存</span>' : ''}
                                 </div>
                             </td>
