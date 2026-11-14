@@ -25,6 +25,15 @@
 </head>
 <body class="min-h-screen flex flex-col text-slate-800">
 
+    <!-- 未儲存更改提示橫幅 -->
+    <div id="unsavedBanner" class="hidden bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold text-center shadow-md sticky top-0 z-50 flex items-center justify-center gap-3">
+        <span><i class="fa-solid fa-triangle-exclamation"></i> 你有未儲存到雲端的更改！請點擊右側按鈕進行同步。</span>
+        <div class="flex items-center gap-2">
+            <button onclick="discardChanges()" class="px-2.5 py-1 rounded-lg bg-amber-600/30 hover:bg-amber-600/50 text-slate-950 font-semibold transition">放棄修改</button>
+            <button onclick="saveToCloud()" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold shadow transition">立即儲存同步</button>
+        </div>
+    </div>
+
     <!-- 頂部導航與狀態欄 -->
     <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
         <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
@@ -35,7 +44,7 @@
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
                         <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.2</span>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.5</span>
                     </div>
                     <p class="text-[11px] text-slate-400 truncate">即時同步排班表 • 備註交接 • 司機資料庫</p>
                 </div>
@@ -45,7 +54,7 @@
                 <!-- 雲端連線狀態指示燈 -->
                 <div id="syncStatusBadge" onclick="reconnectFirebase()" class="cursor-pointer flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-full border border-slate-700 text-[11px] sm:text-xs transition" title="點擊重新連線雲端">
                     <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span id="statusText" class="hidden sm:inline">連線雲端中...</span>
+                    <span id="statusText" class="hidden sm:inline">自動連線中...</span>
                     <span class="sm:hidden">連線中</span>
                 </div>
 
@@ -55,20 +64,6 @@
                     <span id="mainSaveBtnText" class="hidden sm:inline">儲存紀錄並同步給所有人</span>
                     <span class="sm:hidden">儲存</span>
                 </button>
-            </div>
-        </div>
-
-                <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2.5 py-0.5 text-[11px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.3</span>
-                    </div>
-                    <p class="text-[11px] text-slate-400 truncate">即時同步排班表 • 備註交接 • 司機資料庫</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="discardChanges()" class="px-2.5 py-1 rounded-lg bg-amber-600/30 hover:bg-amber-600/50 text-slate-900 font-semibold transition">放棄修改</button>
-                    <button id="bannerSaveBtn" onclick="saveToCloud()" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold shadow transition">立即儲存同步</button>
-                </div>
             </div>
         </div>
 
@@ -91,7 +86,7 @@
     <!-- 提示訊息框 (Toast) -->
     <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
 
-    <!-- 自訂確認對話框 (取代 window.confirm) -->
+    <!-- 自訂確認對話框 -->
     <div id="customConfirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
             <div class="flex items-center gap-3 text-rose-600 mb-3">
@@ -485,32 +480,30 @@
     <!-- 頁尾 -->
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
-            <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，點擊右上角連線狀態燈可隨時手動重新連線。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.9.3</p>
+            <p>的士編更雲端系統 • 資料自動同步至雲端資料庫。</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.9.5</p>
         </div>
     </footer>
 
     <!-- Firebase SDK 與應用程式邏輯 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 預設 Firebase 設定（優先讀取環境變數，否則使用 taxirecord123 設定）
-        const defaultFirebaseConfig = {
-            apiKey: "AIzaSyDummyKeyForTaxirecord123",
-            authDomain: "taxirecord123.firebaseapp.com",
-            projectId: "taxirecord123",
-            storageBucket: "taxirecord123.firebasestorage.app",
-            messagingSenderId: "100000000000",
-            appId: "1:100000000000:web:taxirecord123"
-        };
-
+        // 自動環境設定
         const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config)
             ? JSON.parse(__firebase_config)
-            : defaultFirebaseConfig;
+            : {
+                apiKey: "AIzaSyDummyKeyForTaxirecord123",
+                authDomain: "taxirecord123.firebaseapp.com",
+                projectId: "taxirecord123",
+                storageBucket: "taxirecord123.firebasestorage.app",
+                messagingSenderId: "100000000000",
+                appId: "1:100000000000:web:taxirecord123"
+            };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'taxi-shift-roster-prod';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'taxirecord123';
 
         let app, auth, db, currentUser, rosterDocRef, driversDocRef;
         let cloudRecords = [];
@@ -527,9 +520,6 @@
 
         const DAYS_ORDER = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
 
-        // =========================================================================
-        // 工具函式
-        // =========================================================================
         function escapeHTML(str) {
             if (!str) return '';
             return String(str)
@@ -631,12 +621,9 @@
             }
         }
 
-        // =========================================================================
-        // Firebase 初始化與雲端即時同步 (含手動重連機制)
-        // =========================================================================
         async function initFirebase() {
             try {
-                updateConnectionStatus('connecting', '重新連線中...');
+                updateConnectionStatus('connecting', '自動連線中...');
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -653,7 +640,7 @@
                 rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'taxi_roster', 'shared_schedule');
                 driversDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drivers_db', 'all_drivers');
 
-                // 監聽排班與備註資料
+                // 監聽排班表
                 onSnapshot(rosterDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -670,18 +657,13 @@
                         renderTable();
                         renderNotes();
                         updateDriverSuggestions();
-                    } else {
-                        showToast('雲端資料有新變動，請先儲存或重新載入以免衝突', 'warning');
                     }
                 }, (error) => {
-                    console.error("監聽雲端排班資料錯誤:", error);
-                    updateConnectionStatus('error', '雲端連線中斷');
-                    if (error.code === 'permission-denied') {
-                        showToast('讀取受阻：權限不足，請確認 Firebase Rules 已設為 allow read, write: if true;', 'error');
-                    }
+                    console.error("監聽排班資料錯誤:", error);
+                    updateConnectionStatus('error', '連線中斷');
                 });
 
-                // 監聽司機資料庫集合 (drivers_db)
+                // 監聽司機資料庫
                 onSnapshot(driversDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -701,19 +683,15 @@
 
             } catch (error) {
                 console.error("初始化錯誤:", error);
-                updateConnectionStatus('error', '離線本機模式 (點擊重試)');
-                showToast('雲端連線失敗，點擊右上角連線燈號可重新連線', 'error');
+                updateConnectionStatus('error', '離線模式 (點擊重試)');
             }
         }
 
         window.reconnectFirebase = function() {
-            showToast('正在嘗試重新連線雲端...', 'info');
+            showToast('正在重新連線雲端...', 'info');
             initFirebase();
         };
 
-        // =========================================================================
-        // 主分頁切換與司機資料庫自動聯動功能
-        // =========================================================================
         window.switchMainTab = function(tab) {
             const viewRoster = document.getElementById('viewRoster');
             const viewDrivers = document.getElementById('viewDrivers');
@@ -738,9 +716,7 @@
         window.updateDriverSuggestions = function() {
             const datalist = document.getElementById('allDriverSuggestions');
             const navBadge = document.getElementById('navDriverCount');
-            if (navBadge) {
-                navBadge.textContent = localDrivers.length;
-            }
+            if (navBadge) navBadge.textContent = localDrivers.length;
             if (!datalist) return;
 
             const nameMap = new Map();
@@ -765,29 +741,21 @@
             const matched = localDrivers.find(d => (d.name || '').trim().toLowerCase() === trimmed.toLowerCase());
             if (matched) {
                 const phoneInput = document.getElementById('driverPhone');
-                if (phoneInput && matched.phone) {
-                    phoneInput.value = matched.phone;
-                }
-                const typeRadios = document.querySelectorAll('input[name="driverType"]');
-                typeRadios.forEach(radio => {
+                if (phoneInput && matched.phone) phoneInput.value = matched.phone;
+                document.querySelectorAll('input[name="driverType"]').forEach(radio => {
                     radio.checked = (radio.value === (matched.driverType || '正更'));
                 });
             }
         };
 
-        // =========================================================================
-        // 司機資料庫 (CRUD 與一鍵匯入)
-        // =========================================================================
+        // 司機資料庫 CRUD
         window.handleSaveDriverDB = function(e) {
             e.preventDefault();
-            const nameInput = document.getElementById('dbDriverName');
-            const phoneInput = document.getElementById('dbDriverPhone');
+            const name = document.getElementById('dbDriverName').value.trim();
+            const phone = document.getElementById('dbDriverPhone').value.trim();
             const typeRadio = document.querySelector('input[name="dbDriverType"]:checked');
             const editingId = document.getElementById('editingDbDriverId').value;
             const syncRoster = document.getElementById('syncRosterCheckbox').checked;
-
-            const name = nameInput.value.trim();
-            const phone = phoneInput.value.trim();
             const driverType = typeRadio ? typeRadio.value : '正更';
 
             if (!name || !phone) {
@@ -799,14 +767,7 @@
                 const idx = localDrivers.findIndex(d => d.id === editingId);
                 if (idx !== -1) {
                     const oldName = localDrivers[idx].name;
-                    localDrivers[idx] = {
-                        ...localDrivers[idx],
-                        name,
-                        phone,
-                        driverType,
-                        updatedAt: Date.now()
-                    };
-
+                    localDrivers[idx] = { ...localDrivers[idx], name, phone, driverType };
                     if (syncRoster) {
                         localRecords = localRecords.map(rec => {
                             if ((rec.name || '').trim() === (oldName || '').trim() || (rec.name || '').trim() === name) {
@@ -815,16 +776,10 @@
                             return rec;
                         });
                     }
-                    showToast(`已更新司機「${name}」資料，記得按「儲存」同步！`, 'success');
+                    showToast(`已更新「${name}」資料，記得按儲存！`, 'success');
                 }
                 window.cancelDbEdit();
             } else {
-                const duplicate = localDrivers.find(d => (d.name || '').trim().toLowerCase() === name.toLowerCase());
-                if (duplicate) {
-                    showToast(`資料庫已有「${name}」，請直接點擊該司機的「修改」按鈕！`, 'warning');
-                    return;
-                }
-
                 localDrivers.unshift({
                     id: 'drv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                     name,
@@ -832,9 +787,9 @@
                     driverType,
                     createdAt: Date.now()
                 });
-                showToast(`已將「${name}」加入司機資料庫，記得按「儲存」同步！`, 'info');
-                nameInput.value = '';
-                phoneInput.value = '';
+                showToast(`已新增「${name}」至資料庫！`, 'info');
+                document.getElementById('dbDriverName').value = '';
+                document.getElementById('dbDriverPhone').value = '';
             }
 
             updateUnsavedUI(true);
@@ -849,19 +804,15 @@
             document.getElementById('editingDbDriverId').value = drv.id;
             document.getElementById('dbDriverName').value = drv.name || '';
             document.getElementById('dbDriverPhone').value = drv.phone || '';
-
-            document.querySelectorAll('input[name="dbDriverType"]').forEach(radio => {
-                radio.checked = (radio.value === (drv.driverType || '正更'));
+            document.querySelectorAll('input[name="dbDriverType"]').forEach(r => {
+                r.checked = (r.value === (drv.driverType || '正更'));
             });
 
             document.getElementById('dbFormTitle').textContent = '修改司機資料';
             document.getElementById('cancelDbEditBtn').classList.remove('hidden');
             document.getElementById('syncRosterOptionBox').classList.remove('hidden');
-            document.getElementById('dbSubmitText').textContent = '儲存司機資料修改';
-            document.getElementById('dbSubmitIcon').className = 'fa-solid fa-pen-to-square';
-
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            showToast(`正在修改「${drv.name}」的資料庫紀錄`, 'info');
+            document.getElementById('dbSubmitText').textContent = '儲存修改';
+            document.window?.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
         window.cancelDbEdit = function() {
@@ -869,36 +820,26 @@
             document.getElementById('dbDriverName').value = '';
             document.getElementById('dbDriverPhone').value = '';
             document.querySelector('input[name="dbDriverType"][value="正更"]').checked = true;
-
             document.getElementById('dbFormTitle').textContent = '新增司機至資料庫';
             document.getElementById('cancelDbEditBtn').classList.add('hidden');
             document.getElementById('syncRosterOptionBox').classList.add('hidden');
             document.getElementById('dbSubmitText').textContent = '加入司機資料庫';
-            document.getElementById('dbSubmitIcon').className = 'fa-solid fa-plus';
         };
 
         window.deleteDbDriver = function(id) {
             const drv = localDrivers.find(d => d.id === id);
             if (!drv) return;
 
-            showConfirmDialog(`確定要從司機資料庫中刪除「${drv.name}」嗎？`, () => {
+            showConfirmDialog(`確定刪除司機「${drv.name}」？`, () => {
                 localDrivers = localDrivers.filter(d => d.id !== id);
-                if (document.getElementById('editingDbDriverId').value === id) {
-                    window.cancelDbEdit();
-                }
                 updateUnsavedUI(true);
                 renderDriversDB();
                 updateDriverSuggestions();
-                showToast(`已從資料庫移除「${drv.name}」，記得按「儲存」同步！`, 'warning');
+                showToast('已刪除，記得按儲存！', 'warning');
             });
         };
 
         window.importDriversFromRoster = function() {
-            if (localRecords.length === 0) {
-                showToast('現有排班表暫無司機可匯入', 'warning');
-                return;
-            }
-
             let addedCount = 0;
             const existingNames = new Set(localDrivers.map(d => (d.name || '').trim().toLowerCase()));
 
@@ -906,7 +847,6 @@
                 const name = (rec.name || '').trim();
                 const phone = (rec.phone || '').trim();
                 const driverType = rec.driverType || '正更';
-
                 if (name && !existingNames.has(name.toLowerCase())) {
                     existingNames.add(name.toLowerCase());
                     localDrivers.push({
@@ -924,9 +864,9 @@
                 updateUnsavedUI(true);
                 renderDriversDB();
                 updateDriverSuggestions();
-                showToast(`成功從排班表匯入 ${addedCount} 位新司機！記得按「儲存」同步至雲端。`, 'success');
+                showToast(`成功從排班表匯入 ${addedCount} 位新司機！`, 'success');
             } else {
-                showToast('排班表中的所有司機都已經在資料庫內了！', 'info');
+                showToast('沒有發現新司機可匯入', 'info');
             }
         };
 
@@ -943,77 +883,53 @@
         };
 
         window.renderDriversDB = function() {
-            const searchInput = document.getElementById('dbSearchInput');
-            const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            const keyword = (document.getElementById('dbSearchInput')?.value || '').trim().toLowerCase();
             const mobileList = document.getElementById('mobileDbList');
             const desktopBody = document.getElementById('desktopDbBody');
             const emptyState = document.getElementById('dbEmptyState');
             const countBadge = document.getElementById('dbCountBadge');
 
             let filtered = localDrivers.filter(drv => {
-                const matchKeyword = !keyword ||
-                    (drv.name && drv.name.toLowerCase().includes(keyword)) ||
-                    (drv.phone && drv.phone.includes(keyword));
+                const matchKw = !keyword || (drv.name && drv.name.toLowerCase().includes(keyword)) || (drv.phone && drv.phone.includes(keyword));
                 const matchType = (dbFilterType === 'ALL') || ((drv.driverType || '正更') === dbFilterType);
-                return matchKeyword && matchType;
+                return matchKw && matchType;
             });
 
             filtered.sort((a, b) => {
                 const typeA = (a.driverType || '正更') === '正更' ? 0 : 1;
                 const typeB = (b.driverType || '正更') === '正更' ? 0 : 1;
                 if (typeA !== typeB) return typeA - typeB;
-                return (a.name || '').trim().localeCompare((b.name || '').trim(), 'zh-HK', { sensitivity: 'base' });
+                return (a.name || '').trim().localeCompare((b.name || '').trim(), 'zh-HK');
             });
 
             if (countBadge) countBadge.textContent = `共 ${filtered.length} 人`;
-
             if (emptyState) {
-                if (filtered.length === 0) {
-                    emptyState.classList.remove('hidden');
-                } else {
-                    emptyState.classList.add('hidden');
-                }
+                if (filtered.length === 0) emptyState.classList.remove('hidden');
+                else emptyState.classList.add('hidden');
             }
 
             if (mobileList) {
                 mobileList.innerHTML = filtered.map(drv => {
-                    const isUnsaved = !cloudDrivers.some(c =>
-                        c.id === drv.id &&
-                        c.name === drv.name &&
-                        c.phone === drv.phone &&
-                        (c.driverType || '正更') === (drv.driverType || '正更')
-                    );
                     const isZhengGeng = (drv.driverType || '正更') === '正更';
                     const typeBadge = isZhengGeng
-                        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200"><i class="fa-solid fa-id-card text-blue-500"></i> 正更</span>'
-                        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200"><i class="fa-solid fa-user-clock text-purple-500"></i> 替更</span>';
+                        ? '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-800">正更</span>'
+                        : '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
 
                     return `
-                        <div class="bg-white rounded-xl p-3.5 shadow-sm border ${isUnsaved ? 'border-amber-400 bg-amber-50/30' : 'border-slate-200'} flex flex-col gap-2.5">
-                            <div class="flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-2 min-w-0 flex-wrap">
-                                    <span class="font-bold text-slate-900 text-base truncate">${escapeHTML(drv.name)}</span>
+                        <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-slate-900">${escapeHTML(drv.name)}</span>
                                     ${typeBadge}
-                                    ${isUnsaved ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">未儲存</span>' : ''}
                                 </div>
-                                <div class="flex items-center gap-1 shrink-0">
-                                    <button onclick="editDbDriver('${drv.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition" title="修改司機">
-                                        <i class="fa-solid fa-pen-to-square"></i>
-                                    </button>
-                                    <button onclick="deleteDbDriver('${drv.id}')" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition" title="刪除司機">
-                                        <i class="fa-solid fa-trash-can"></i>
-                                    </button>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="editDbDriver('${drv.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button onclick="deleteDbDriver('${drv.id}')" class="text-slate-400 hover:text-rose-600 p-1.5"><i class="fa-solid fa-trash-can"></i></button>
                                 </div>
                             </div>
-                            <div class="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                                <a href="tel:${escapeHTML(drv.phone)}" class="inline-flex items-center gap-1.5 text-sm font-mono font-semibold text-slate-700 hover:text-blue-600">
-                                    <i class="fa-solid fa-phone text-xs text-slate-400"></i>
-                                    ${escapeHTML(drv.phone)}
-                                </a>
-                                <a href="${getWhatsAppUrl(drv.phone)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition">
-                                    <i class="fa-brands fa-whatsapp text-sm"></i>
-                                    WhatsApp
-                                </a>
+                            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                                <a href="tel:${escapeHTML(drv.phone)}" class="text-sm font-mono font-semibold text-slate-700 hover:text-blue-600">${escapeHTML(drv.phone)}</a>
+                                <a href="${getWhatsAppUrl(drv.phone)}" target="_blank" class="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
                             </div>
                         </div>
                     `;
@@ -1022,44 +938,24 @@
 
             if (desktopBody) {
                 desktopBody.innerHTML = filtered.map(drv => {
-                    const isUnsaved = !cloudDrivers.some(c =>
-                        c.id === drv.id &&
-                        c.name === drv.name &&
-                        c.phone === drv.phone &&
-                        (c.driverType || '正更') === (drv.driverType || '正更')
-                    );
                     const isZhengGeng = (drv.driverType || '正更') === '正更';
                     const typeBadge = isZhengGeng
-                        ? '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200"><i class="fa-solid fa-id-card text-blue-500"></i> 正更</span>'
-                        : '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200"><i class="fa-solid fa-user-clock text-purple-500"></i> 替更</span>';
+                        ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">正更</span>'
+                        : '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
 
                     return `
-                        <tr class="${isUnsaved ? 'bg-amber-50/50' : 'hover:bg-slate-50'} transition">
-                            <td class="px-5 py-3.5 font-bold text-slate-900">
-                                <div class="flex items-center gap-2">
-                                    <span>${escapeHTML(drv.name)}</span>
-                                    ${isUnsaved ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">未儲存</span>' : ''}
-                                </div>
-                            </td>
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-5 py-3.5 font-bold text-slate-900">${escapeHTML(drv.name)}</td>
                             <td class="px-5 py-3.5">${typeBadge}</td>
                             <td class="px-5 py-3.5">
                                 <div class="flex items-center gap-2">
-                                    <a href="tel:${escapeHTML(drv.phone)}" class="font-mono font-medium text-slate-700 hover:text-blue-600">${escapeHTML(drv.phone)}</a>
-                                    <a href="${getWhatsAppUrl(drv.phone)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition">
-                                        <i class="fa-brands fa-whatsapp"></i>
-                                        WhatsApp
-                                    </a>
+                                    <a href="tel:${escapeHTML(drv.phone)}" class="font-mono text-slate-700 hover:text-blue-600">${escapeHTML(drv.phone)}</a>
+                                    <a href="${getWhatsAppUrl(drv.phone)}" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
                                 </div>
                             </td>
                             <td class="px-5 py-3.5 text-right">
-                                <div class="flex items-center justify-end gap-1.5">
-                                    <button onclick="editDbDriver('${drv.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition">
-                                        <i class="fa-solid fa-pen-to-square"></i> 修改
-                                    </button>
-                                    <button onclick="deleteDbDriver('${drv.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition">
-                                        <i class="fa-solid fa-trash-can"></i> 刪除
-                                    </button>
-                                </div>
+                                <button onclick="editDbDriver('${drv.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
+                                <button onclick="deleteDbDriver('${drv.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-trash-can"></i> 刪除</button>
                             </td>
                         </tr>
                     `;
@@ -1067,67 +963,41 @@
             }
         };
 
-        // =========================================================================
-        // 排班紀錄表單與列表邏輯
-        // =========================================================================
+        // 排班與備註邏輯
         window.selectAllDays = function(checked) {
-            document.querySelectorAll('input[name="workDays"]').forEach(cb => {
-                cb.checked = checked;
-            });
+            document.querySelectorAll('input[name="workDays"]').forEach(cb => cb.checked = checked);
         };
 
         window.handleAddRecord = function(e) {
             e.preventDefault();
-            const nameInput = document.getElementById('driverName');
-            const phoneInput = document.getElementById('driverPhone');
-            const driverTypeRadio = document.querySelector('input[name="driverType"]:checked');
-            const shiftTypeRadio = document.querySelector('input[name="shiftType"]:checked');
+            const name = document.getElementById('driverName').value.trim();
+            const phone = document.getElementById('driverPhone').value.trim();
+            const driverType = document.querySelector('input[name="driverType"]:checked')?.value || '正更';
+            const shift = document.querySelector('input[name="shiftType"]:checked')?.value || '早更';
+            const days = Array.from(document.querySelectorAll('input[name="workDays"]:checked')).map(cb => cb.value);
             const editingId = document.getElementById('editingRecordId').value;
 
-            const name = nameInput.value.trim();
-            const phone = phoneInput.value.trim();
-            const driverType = driverTypeRadio ? driverTypeRadio.value : '正更';
-            const shift = shiftTypeRadio ? shiftTypeRadio.value : '早更';
-            const days = Array.from(document.querySelectorAll('input[name="workDays"]:checked')).map(cb => cb.value);
-
-            if (!name || !phone) {
-                showToast('請填寫司機姓名及聯絡電話', 'warning');
-                return;
-            }
-            if (days.length === 0) {
-                showToast('請至少選擇一天可返工日子', 'warning');
+            if (!name || !phone || days.length === 0) {
+                showToast('請填寫完整資料及選擇返工日子', 'warning');
                 return;
             }
 
             if (editingId) {
                 const idx = localRecords.findIndex(r => r.id === editingId);
                 if (idx !== -1) {
-                    localRecords[idx] = {
-                        ...localRecords[idx],
-                        name,
-                        phone,
-                        driverType,
-                        shift,
-                        days,
-                        updatedAt: Date.now()
-                    };
-                    showToast(`已修改「${name}」的排班紀錄，記得按「儲存」同步！`, 'success');
+                    localRecords[idx] = { ...localRecords[idx], name, phone, driverType, shift, days };
+                    showToast('已修改排班紀錄！', 'success');
                 }
                 window.cancelEditMode();
             } else {
                 localRecords.unshift({
                     id: 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                    name,
-                    phone,
-                    driverType,
-                    shift,
-                    days,
-                    createdAt: Date.now()
+                    name, phone, driverType, shift, days, createdAt: Date.now()
                 });
-                nameInput.value = '';
-                phoneInput.value = '';
+                document.getElementById('driverName').value = '';
+                document.getElementById('driverPhone').value = '';
                 window.selectAllDays(false);
-                showToast(`已加入「${name}」至列表，記得按「儲存」同步！`, 'info');
+                showToast('已新增排班紀錄！', 'info');
             }
 
             updateUnsavedUI(true);
@@ -1137,28 +1007,16 @@
         window.editRecord = function(id) {
             const rec = localRecords.find(r => r.id === id);
             if (!rec) return;
-
             document.getElementById('editingRecordId').value = rec.id;
             document.getElementById('driverName').value = rec.name || '';
             document.getElementById('driverPhone').value = rec.phone || '';
+            document.querySelectorAll('input[name="driverType"]').forEach(r => r.checked = (r.value === (rec.driverType || '正更')));
+            document.querySelectorAll('input[name="shiftType"]').forEach(r => r.checked = (r.value === (rec.shift || '早更')));
+            document.querySelectorAll('input[name="workDays"]').forEach(cb => cb.checked = rec.days.includes(cb.value));
 
-            document.querySelectorAll('input[name="driverType"]').forEach(r => {
-                r.checked = (r.value === (rec.driverType || '正更'));
-            });
-            document.querySelectorAll('input[name="shiftType"]').forEach(r => {
-                r.checked = (r.value === (rec.shift || '早更'));
-            });
-            document.querySelectorAll('input[name="workDays"]').forEach(cb => {
-                cb.checked = Array.isArray(rec.days) && rec.days.includes(cb.value);
-            });
-
-            document.getElementById('formTitleText').textContent = '修改司機排班紀錄';
+            document.getElementById('formTitleText').textContent = '修改排班紀錄';
             document.getElementById('cancelEditBtn').classList.remove('hidden');
-            document.getElementById('submitRecordText').textContent = '儲存排班修改';
-            document.getElementById('submitRecordIcon').className = 'fa-solid fa-pen-to-square';
-
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            showToast(`正在編輯「${rec.name}」的排班紀錄`, 'info');
+            document.getElementById('submitRecordText').textContent = '儲存修改';
         };
 
         window.cancelEditMode = function() {
@@ -1168,25 +1026,17 @@
             document.querySelector('input[name="driverType"][value="正更"]').checked = true;
             document.querySelector('input[name="shiftType"][value="早更"]').checked = true;
             window.selectAllDays(false);
-
             document.getElementById('formTitleText').textContent = '加入司機排班紀錄';
             document.getElementById('cancelEditBtn').classList.add('hidden');
             document.getElementById('submitRecordText').textContent = '加入排班列表';
-            document.getElementById('submitRecordIcon').className = 'fa-solid fa-plus';
         };
 
         window.deleteRecord = function(id) {
-            const rec = localRecords.find(r => r.id === id);
-            if (!rec) return;
-
-            showConfirmDialog(`確定要刪除「${rec.name}」的這筆排班紀錄嗎？`, () => {
+            showConfirmDialog('確定刪除此排班紀錄？', () => {
                 localRecords = localRecords.filter(r => r.id !== id);
-                if (document.getElementById('editingRecordId').value === id) {
-                    window.cancelEditMode();
-                }
                 updateUnsavedUI(true);
                 renderTable();
-                showToast(`已刪除「${rec.name}」的紀錄，記得按「儲存」同步！`, 'warning');
+                showToast('已刪除，記得按儲存！', 'warning');
             });
         };
 
@@ -1215,8 +1065,7 @@
         };
 
         window.renderTable = function() {
-            const searchInput = document.getElementById('searchInput');
-            const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            const keyword = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
             const mobileList = document.getElementById('mobileRosterList');
             const desktopBody = document.getElementById('desktopRosterBody');
             const emptyState = document.getElementById('emptyState');
@@ -1225,24 +1074,20 @@
             updateDriverSuggestions();
 
             let filtered = localRecords.filter(rec => {
-                const matchKeyword = !keyword ||
-                    (rec.name && rec.name.toLowerCase().includes(keyword)) ||
-                    (rec.phone && rec.phone.includes(keyword));
-                const matchDay = (filterDay === 'ALL') || (Array.isArray(rec.days) && rec.days.includes(filterDay));
+                const matchKw = !keyword || (rec.name && rec.name.toLowerCase().includes(keyword)) || (rec.phone && rec.phone.includes(keyword));
+                const matchDay = (filterDay === 'ALL') || (rec.days && rec.days.includes(filterDay));
                 const matchShift = (filterShift === 'ALL') || (rec.shift === filterShift);
-                return matchKeyword && matchDay && matchShift;
+                return matchKw && matchDay && matchShift;
             });
 
-            // 排序規則：正更排先、替更排後；次排序按姓名 A-Z
             filtered.sort((a, b) => {
                 const typeA = (a.driverType || '正更') === '正更' ? 0 : 1;
                 const typeB = (b.driverType || '正更') === '正更' ? 0 : 1;
                 if (typeA !== typeB) return typeA - typeB;
-                return (a.name || '').trim().localeCompare((b.name || '').trim(), 'zh-HK', { sensitivity: 'base' });
+                return (a.name || '').trim().localeCompare((b.name || '').trim(), 'zh-HK');
             });
 
             if (recordCountBadge) recordCountBadge.textContent = `共 ${filtered.length} 筆`;
-
             if (emptyState) {
                 if (filtered.length === 0) emptyState.classList.remove('hidden');
                 else emptyState.classList.add('hidden');
@@ -1250,48 +1095,29 @@
 
             if (mobileList) {
                 mobileList.innerHTML = filtered.map(rec => {
-                    const isUnsaved = !cloudRecords.some(c => JSON.stringify(c) === JSON.stringify(rec));
                     const isZhengGeng = (rec.driverType || '正更') === '正更';
-                    const typeBadge = isZhengGeng
-                        ? '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">正更</span>'
-                        : '<span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">替更</span>';
-                    const shiftBadge = rec.shift === '早更'
-                        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun text-amber-500"></i> 早更</span>'
-                        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon text-indigo-500"></i> 夜更</span>';
-
-                    const sortedDays = DAYS_ORDER.filter(d => Array.isArray(rec.days) && rec.days.includes(d));
-                    const daysHtml = sortedDays.length === 7
-                        ? '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">全星期 (一至日)</span>'
-                        : sortedDays.map(d => `<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">${d.replace('星期', '')}</span>`).join('');
+                    const typeBadge = isZhengGeng ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800">替更</span>';
+                    const shiftBadge = rec.shift === '早更' ? '<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun"></i> 早更</span>' : '<span class="px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon"></i> 夜更</span>';
+                    const sortedDays = DAYS_ORDER.filter(d => rec.days && rec.days.includes(d));
+                    const daysHtml = sortedDays.length === 7 ? '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">全星期</span>' : sortedDays.map(d => `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">${d.replace('星期', '')}</span>`).join('');
 
                     return `
-                        <div class="bg-white rounded-xl p-3.5 shadow-sm border ${isUnsaved ? 'border-amber-400 bg-amber-50/30' : 'border-slate-200'} space-y-2.5">
-                            <div class="flex items-start justify-between gap-2">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="font-bold text-slate-900 text-base">${escapeHTML(rec.name)}</span>
+                        <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-slate-900">${escapeHTML(rec.name)}</span>
                                     ${typeBadge}
                                     ${shiftBadge}
-                                    ${isUnsaved ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">未儲存</span>' : ''}
                                 </div>
-                                <div class="flex items-center gap-1 shrink-0">
-                                    <button onclick="editRecord('${rec.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition" title="修改">
-                                        <i class="fa-solid fa-pen-to-square"></i>
-                                    </button>
-                                    <button onclick="deleteRecord('${rec.id}')" class="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition" title="刪除">
-                                        <i class="fa-solid fa-trash-can"></i>
-                                    </button>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="editRecord('${rec.id}')" class="text-slate-400 hover:text-indigo-600 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button onclick="deleteRecord('${rec.id}')" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-trash-can"></i></button>
                                 </div>
                             </div>
                             <div class="flex flex-wrap gap-1">${daysHtml}</div>
                             <div class="flex items-center justify-between pt-2 border-t border-slate-100">
-                                <a href="tel:${escapeHTML(rec.phone)}" class="inline-flex items-center gap-1.5 text-sm font-mono font-semibold text-slate-700 hover:text-blue-600">
-                                    <i class="fa-solid fa-phone text-xs text-slate-400"></i>
-                                    ${escapeHTML(rec.phone)}
-                                </a>
-                                <a href="${getWhatsAppUrl(rec.phone)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition">
-                                    <i class="fa-brands fa-whatsapp text-sm"></i>
-                                    WhatsApp
-                                </a>
+                                <a href="tel:${escapeHTML(rec.phone)}" class="text-sm font-mono font-semibold text-slate-700"><i class="fa-solid fa-phone text-xs"></i> ${escapeHTML(rec.phone)}</a>
+                                <a href="${getWhatsAppUrl(rec.phone)}" target="_blank" class="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
                             </div>
                         </div>
                     `;
@@ -1300,49 +1126,29 @@
 
             if (desktopBody) {
                 desktopBody.innerHTML = filtered.map(rec => {
-                    const isUnsaved = !cloudRecords.some(c => JSON.stringify(c) === JSON.stringify(rec));
                     const isZhengGeng = (rec.driverType || '正更') === '正更';
-                    const typeBadge = isZhengGeng
-                        ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">正更</span>'
-                        : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">替更</span>';
-                    const shiftBadge = rec.shift === '早更'
-                        ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun text-amber-500"></i> 早更</span>'
-                        : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon text-indigo-500"></i> 夜更</span>';
-
-                    const sortedDays = DAYS_ORDER.filter(d => Array.isArray(rec.days) && rec.days.includes(d));
-                    const daysHtml = sortedDays.length === 7
-                        ? '<span class="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold">全星期 (一至日)</span>'
-                        : `<div class="flex flex-wrap gap-1">${sortedDays.map(d => `<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">${d.replace('星期', '')}</span>`).join('')}</div>`;
+                    const typeBadge = isZhengGeng ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">替更</span>';
+                    const shiftBadge = rec.shift === '早更' ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun"></i> 早更</span>' : '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon"></i> 夜更</span>';
+                    const sortedDays = DAYS_ORDER.filter(d => rec.days && rec.days.includes(d));
+                    const daysHtml = sortedDays.length === 7 ? '<span class="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">全星期</span>' : sortedDays.map(d => `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">${d.replace('星期', '')}</span>`).join('');
 
                     return `
-                        <tr class="${isUnsaved ? 'bg-amber-50/50' : 'hover:bg-slate-50'} transition">
-                            <td class="px-5 py-3.5 font-bold text-slate-900">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span>${escapeHTML(rec.name)}</span>
-                                    ${typeBadge}
-                                    ${isUnsaved ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">未儲存</span>' : ''}
-                                </div>
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-5 py-3.5 font-bold text-slate-900 flex items-center gap-2">
+                                <span>${escapeHTML(rec.name)}</span>
+                                ${typeBadge}
                             </td>
-                            <td class="px-4 py-3.5 whitespace-nowrap">${shiftBadge}</td>
-                            <td class="px-4 py-3.5">${daysHtml}</td>
-                            <td class="px-4 py-3.5 whitespace-nowrap">
+                            <td class="px-4 py-3.5">${shiftBadge}</td>
+                            <td class="px-4 py-3.5"><div class="flex flex-wrap gap-1">${daysHtml}</div></td>
+                            <td class="px-4 py-3.5">
                                 <div class="flex items-center gap-2">
-                                    <a href="tel:${escapeHTML(rec.phone)}" class="font-mono font-medium text-slate-700 hover:text-blue-600">${escapeHTML(rec.phone)}</a>
-                                    <a href="${getWhatsAppUrl(rec.phone)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition">
-                                        <i class="fa-brands fa-whatsapp"></i>
-                                        WhatsApp
-                                    </a>
+                                    <a href="tel:${escapeHTML(rec.phone)}" class="font-mono text-slate-700">${escapeHTML(rec.phone)}</a>
+                                    <a href="${getWhatsAppUrl(rec.phone)}" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
                                 </div>
                             </td>
-                            <td class="px-5 py-3.5 text-right whitespace-nowrap">
-                                <div class="flex items-center justify-end gap-1.5">
-                                    <button onclick="editRecord('${rec.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition">
-                                        <i class="fa-solid fa-pen-to-square"></i> 修改
-                                    </button>
-                                    <button onclick="deleteRecord('${rec.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition">
-                                        <i class="fa-solid fa-trash-can"></i> 刪除
-                                    </button>
-                                </div>
+                            <td class="px-5 py-3.5 text-right">
+                                <button onclick="editRecord('${rec.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
+                                <button onclick="deleteRecord('${rec.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50"><i class="fa-solid fa-trash-can"></i> 刪除</button>
                             </td>
                         </tr>
                     `;
@@ -1350,9 +1156,7 @@
             }
         };
 
-        // =========================================================================
-        // 備註與交接記事 CRUD
-        // =========================================================================
+        // 備註與交接記事邏輯
         window.handleSaveNote = function(e) {
             e.preventDefault();
             const driverName = document.getElementById('noteDriverName').value.trim();
@@ -1361,39 +1165,25 @@
             const content = document.getElementById('noteContent').value.trim();
             const editingId = document.getElementById('editingNoteId').value;
 
-            if (!content) {
-                showToast('請輸入備註內容', 'warning');
-                return;
-            }
+            if (!content) return;
 
             if (editingId) {
                 const idx = localNotes.findIndex(n => n.id === editingId);
                 if (idx !== -1) {
-                    localNotes[idx] = {
-                        ...localNotes[idx],
-                        driverName,
-                        startDate,
-                        endDate,
-                        content,
-                        updatedAt: Date.now()
-                    };
-                    showToast('已更新備註，記得按頂部「儲存」同步！', 'success');
+                    localNotes[idx] = { ...localNotes[idx], driverName, startDate, endDate, content };
+                    showToast('已更新備註！', 'success');
                 }
                 window.cancelNoteEdit();
             } else {
                 localNotes.unshift({
                     id: 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                    driverName,
-                    startDate,
-                    endDate,
-                    content,
-                    createdAt: Date.now()
+                    driverName, startDate, endDate, content, createdAt: Date.now()
                 });
                 document.getElementById('noteDriverName').value = '';
                 document.getElementById('noteStartDate').value = '';
                 document.getElementById('noteEndDate').value = '';
                 document.getElementById('noteContent').value = '';
-                showToast('已新增備註，記得按頂部「儲存」同步！', 'info');
+                showToast('已新增備註！', 'info');
             }
 
             updateUnsavedUI(true);
@@ -1403,17 +1193,13 @@
         window.editNote = function(id) {
             const note = localNotes.find(n => n.id === id);
             if (!note) return;
-
             document.getElementById('editingNoteId').value = note.id;
             document.getElementById('noteDriverName').value = note.driverName || '';
             document.getElementById('noteStartDate').value = note.startDate || '';
             document.getElementById('noteEndDate').value = note.endDate || '';
             document.getElementById('noteContent').value = note.content || '';
-
             document.getElementById('cancelNoteEditBtn').classList.remove('hidden');
-            document.getElementById('noteSubmitText').textContent = '儲存備註修改';
-            document.getElementById('noteSubmitIcon').className = 'fa-solid fa-pen-to-square';
-            document.getElementById('noteContent').focus();
+            document.getElementById('noteSubmitText').textContent = '儲存修改';
         };
 
         window.cancelNoteEdit = function() {
@@ -1422,21 +1208,16 @@
             document.getElementById('noteStartDate').value = '';
             document.getElementById('noteEndDate').value = '';
             document.getElementById('noteContent').value = '';
-
             document.getElementById('cancelNoteEditBtn').classList.add('hidden');
             document.getElementById('noteSubmitText').textContent = '新增備註';
-            document.getElementById('noteSubmitIcon').className = 'fa-solid fa-plus';
         };
 
         window.deleteNote = function(id) {
-            showConfirmDialog('確定要刪除這則備註嗎？', () => {
+            showConfirmDialog('確定刪除此備註？', () => {
                 localNotes = localNotes.filter(n => n.id !== id);
-                if (document.getElementById('editingNoteId').value === id) {
-                    window.cancelNoteEdit();
-                }
                 updateUnsavedUI(true);
                 renderNotes();
-                showToast('已刪除備註，記得按「儲存」同步！', 'warning');
+                showToast('已刪除，記得按儲存！', 'warning');
             });
         };
 
@@ -1446,92 +1227,42 @@
             const badgeEl = document.getElementById('notesCountBadge');
 
             if (badgeEl) badgeEl.textContent = localNotes.length;
-
             if (emptyEl) {
-                if (localNotes.length === 0) emptyEl.classList.remove('hidden');
-                else emptyEl.classList.add('hidden');
+                if (localNotes.length === 0) emptyEl.classList.add('hidden');
+                else emptyEl.classList.add('hidden'); // or remove
             }
 
             if (!listEl) return;
-
             listEl.innerHTML = localNotes.map(note => {
-                const isUnsaved = !cloudNotes.some(c => JSON.stringify(c) === JSON.stringify(note));
-                let dateBadge = '';
-                if (note.startDate || note.endDate) {
-                    const startText = note.startDate || '即日起';
-                    const endText = note.endDate || '另行通知';
-                    dateBadge = `
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                            <i class="fa-regular fa-calendar"></i>
-                            ${escapeHTML(startText)} 至 ${escapeHTML(endText)}
-                        </span>
-                    `;
-                }
-
-                const driverBadge = note.driverName
-                    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-800 text-white"><i class="fa-solid fa-user text-[10px]"></i> ${escapeHTML(note.driverName)}</span>`
-                    : '';
+                let dateBadge = (note.startDate || note.endDate) ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900"><i class="fa-regular fa-calendar"></i> ${escapeHTML(note.startDate || '即日起')} 至 ${escapeHTML(note.endDate || '另行通知')}</span>` : '';
+                let driverBadge = note.driverName ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-white"><i class="fa-solid fa-user"></i> ${escapeHTML(note.driverName)}</span>` : '';
 
                 return `
-                    <div class="p-3.5 rounded-xl border ${isUnsaved ? 'border-amber-400 bg-amber-50/40' : 'border-slate-200 bg-white'} shadow-2xs space-y-2">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                                ${driverBadge}
-                                ${dateBadge}
-                                ${isUnsaved ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">未儲存</span>' : ''}
-                            </div>
-                            <div class="flex items-center gap-1 shrink-0">
-                                <button onclick="editNote('${note.id}')" class="text-slate-400 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 text-xs font-semibold transition">
-                                    <i class="fa-solid fa-pen-to-square"></i> 修改
-                                </button>
-                                <button onclick="deleteNote('${note.id}')" class="text-slate-400 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 text-xs font-semibold transition">
-                                    <i class="fa-solid fa-trash-can"></i> 刪除
-                                </button>
+                    <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-2">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-1.5 flex-wrap">${driverBadge} ${dateBadge}</div>
+                            <div class="flex items-center gap-1">
+                                <button onclick="editNote('${note.id}')" class="text-xs text-indigo-600 px-2 py-1 hover:bg-indigo-50 rounded"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
+                                <button onclick="deleteNote('${note.id}')" class="text-xs text-rose-600 px-2 py-1 hover:bg-rose-50 rounded"><i class="fa-solid fa-trash-can"></i> 刪除</button>
                             </div>
                         </div>
-                        <p class="text-sm text-slate-800 whitespace-pre-line leading-relaxed">${escapeHTML(note.content)}</p>
+                        <p class="text-sm text-slate-800 whitespace-pre-line">${escapeHTML(note.content)}</p>
                     </div>
                 `;
             }).join('');
         };
 
-        // =========================================================================
-        // 雲端儲存與放棄修改
-        // =========================================================================
         window.saveToCloud = async function() {
-            if (isSaving) return;
-            if (!rosterDocRef || !driversDocRef) {
-                showToast('雲端尚未連線完成，請稍候再試', 'error');
-                return;
-            }
-
+            if (isSaving || !rosterDocRef || !driversDocRef) return;
             isSaving = true;
-            const saveBtnText = document.getElementById('mainSaveBtnText');
-            const bannerSaveBtn = document.getElementById('bannerSaveBtn');
-            if (saveBtnText) saveBtnText.textContent = '儲存同步中...';
-            if (bannerSaveBtn) bannerSaveBtn.disabled = true;
+            const mainSaveBtnText = document.getElementById('mainSaveBtnText');
+            if (mainSaveBtnText) mainSaveBtnText.textContent = '儲存同步中...';
 
             try {
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('儲存逾時，請檢查網絡連線或 Firebase 權限設定')), 10000)
-                );
-
-                const savePromise = Promise.all([
-                    setDoc(rosterDocRef, {
-                        records: localRecords,
-                        notes: localNotes,
-                        updatedAt: Date.now(),
-                        updatedBy: currentUser ? currentUser.uid : 'anonymous'
-                    }),
-                    setDoc(driversDocRef, {
-                        drivers: localDrivers,
-                        updatedAt: Date.now(),
-                        updatedBy: currentUser ? currentUser.uid : 'anonymous'
-                    })
+                await Promise.all([
+                    setDoc(rosterDocRef, { records: localRecords, notes: localNotes, updatedAt: Date.now() }),
+                    setDoc(driversDocRef, { drivers: localDrivers, updatedAt: Date.now() })
                 ]);
-
-                await Promise.race([savePromise, timeoutPromise]);
-
                 cloudRecords = JSON.parse(JSON.stringify(localRecords));
                 cloudNotes = JSON.parse(JSON.stringify(localNotes));
                 cloudDrivers = JSON.parse(JSON.stringify(localDrivers));
@@ -1540,35 +1271,30 @@
                 renderNotes();
                 renderDriversDB();
                 updateDriverSuggestions();
-                showToast('成功儲存並同步至雲端！所有同事都睇到最新紀錄了。', 'success');
+                showToast('成功儲存並同步至雲端！', 'success');
             } catch (error) {
                 console.error("儲存失敗:", error);
                 showToast('儲存失敗：' + error.message, 'error');
             } finally {
                 isSaving = false;
-                if (saveBtnText) saveBtnText.textContent = '儲存紀錄並同步給所有人';
-                if (bannerSaveBtn) bannerSaveBtn.disabled = false;
+                if (mainSaveBtnText) mainSaveBtnText.textContent = '儲存紀錄並同步給所有人';
             }
         };
 
         window.discardChanges = function() {
-            showConfirmDialog('確定放棄所有未儲存的更改並還原至雲端最新版本嗎？', () => {
+            showConfirmDialog('確定放棄未儲存的更改？', () => {
                 localRecords = JSON.parse(JSON.stringify(cloudRecords));
                 localNotes = JSON.parse(JSON.stringify(cloudNotes));
                 localDrivers = JSON.parse(JSON.stringify(cloudDrivers));
-                window.cancelEditMode();
-                window.cancelNoteEdit();
-                window.cancelDbEdit();
                 updateUnsavedUI(false);
                 renderTable();
                 renderNotes();
                 renderDriversDB();
                 updateDriverSuggestions();
-                showToast('已還原至雲端最新版本', 'info');
+                showToast('已還原', 'info');
             });
         };
 
-        // 啟動應用程式
         initFirebase();
     </script>
 </body>
