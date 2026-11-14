@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
@@ -264,4 +263,523 @@
             <div id="emptyState" class="hidden text-center py-12 px-4">
                 <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100 text-slate-400 mb-3">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-slate-700">暫時未有符合條件嘅替更紀錄</h3>
+                <p class="text-xs text-slate-500 mt-1">你可以喺上方表格輸入新紀錄，然後記得按「儲存」制同步至雲端。</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+        <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
+            <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，更新網頁程式碼絕不影響現有紀錄。</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.3.2</p>
+        </div>
+    </footer>
+
+    <!-- 自訂提示訊息框 (Toast Notification) -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- GitHub 部署與雲端設定說明視窗 (Modal) -->
+    <div id="setupModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <span class="bg-blue-100 text-blue-700 p-1.5 rounded-lg">☁️</span>
+                    <span>點樣擺上 GitHub 並確保更新唔會洗走紀錄？</span>
+                </h3>
+                <button onclick="closeSetupModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-sm text-slate-600 leading-relaxed">
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-900">
+                    <p class="font-bold mb-1">✅ 點解更新 GitHub 程式碼唔會刪除紀錄？</p>
+                    <p>因為所有編更紀錄都係儲存在獨立嘅 <strong>Google Firebase 雲端資料庫</strong>，而唔係寫死喺 HTML 檔案入面。無論你點樣修改網頁介面或者更新 GitHub 程式碼，雲端資料庫入面嘅司機紀錄都會 100% 完整保留！</p>
+                </div>
+
+                <h4 class="font-bold text-slate-800 text-base pt-2">部署到 GitHub Pages 步驟：</h4>
+                <ol class="list-decimal list-inside space-y-2">
+                    <li>前往 <strong>Firebase Console</strong> 建立一個免費專案，並開啟 <strong>Firestore Database</strong>（選擇測試模式或設定讀寫權限）同 <strong>Authentication</strong>（開啟「匿名登入 Anonymous」）。</li>
+                    <li>喺 Firebase 專案設定中複製你嘅 <code class="bg-slate-100 px-1.5 py-0.5 rounded text-red-600">firebaseConfig</code> 貼入本網頁程式碼嘅指定位置。</li>
+                    <li>喺 GitHub 建立一個新 Repository，將呢個檔案改名為 <code class="bg-slate-100 px-1.5 py-0.5 rounded text-red-600">index.html</code> 並上傳。</li>
+                    <li>進入 GitHub Repository 的 <strong>Settings &gt; Pages</strong>，將 Branch 設為 <code class="bg-slate-100 px-1.5 py-0.5 rounded">main</code> 並按 Save。</li>
+                    <li>幾分鐘後就會得到一條專屬網址，將網址 Share 畀其他同事，大家就可以一齊睇同編輯同一個編更表！</li>
+                </ol>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+                <button onclick="closeSetupModal()" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition">
+                    明白晒
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK 與應用程式邏輯 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =========================================================================
+        // 【重要設定區】已填入你的專屬 Firebase Config (projectId: taxirecord123)
+        // =========================================================================
+        const customFirebaseConfig = {
+            apiKey: "AIzaSyB_bNvEgF5-4m8czZSv15ZTY8-7_7LYQPg",
+            authDomain: "taxirecord123.firebaseapp.com",
+            databaseURL: "https://taxirecord123-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "taxirecord123",
+            storageBucket: "taxirecord123.firebasestorage.app",
+            messagingSenderId: "23507400232",
+            appId: "1:23507400232:web:bfe1110e57b2d82b25e71d",
+            measurementId: "G-2BVTVP5W7N"
+        };
+
+        // 自動判斷使用環境變數或自訂 Firebase Config
+        const isCanvasEnv = typeof __firebase_config !== 'undefined';
+        const firebaseConfig = isCanvasEnv ? JSON.parse(__firebase_config) : customFirebaseConfig;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'taxi-shift-roster-prod';
+
+        // 初始化 Firebase
+        let app, auth, db, currentUser = null;
+        let rosterDocRef = null;
+
+        // 應用程式狀態管理
+        let cloudRecords = []; // 雲端最新儲存的紀錄
+        let localRecords = []; // 目前畫面上的紀錄 (包含未儲存的修改)
+        let hasUnsavedChanges = false;
+        let isSaving = false;
+        let currentFilterDay = 'ALL';
+        let currentFilterShift = 'ALL';
+
+        // 星期排序權重，確保顯示時永遠按照「一、二、三、四、五、六、日」排列
+        const dayOrder = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7 };
+
+        // 快速切換星期篩選按鈕
+        window.setDayFilter = function(day) {
+            currentFilterDay = day;
+            document.querySelectorAll('.day-filter-btn').forEach(btn => {
+                if (btn.dataset.day === day) {
+                    btn.className = 'day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white shadow-sm text-center transition';
+                } else {
+                    btn.className = 'day-filter-btn py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 text-center transition';
+                }
+            });
+            renderTable();
+        };
+
+        // 快速切換更份篩選按鈕
+        window.setShiftFilter = function(shift) {
+            currentFilterShift = shift;
+            document.querySelectorAll('.shift-filter-btn').forEach(btn => {
+                if (btn.dataset.shift === shift) {
+                    btn.className = 'shift-filter-btn px-2 py-1 rounded-md text-xs font-bold bg-white text-slate-900 shadow-sm transition';
+                } else {
+                    btn.className = 'shift-filter-btn px-2 py-1 rounded-md text-xs font-bold text-slate-600 hover:text-slate-900 transition';
+                }
+            });
+            renderTable();
+        };
+
+        // 啟動應用程式
+        async function initApp() {
+            try {
+                // 檢查是否已設定有效的 Firebase Config
+                if (!isCanvasEnv && firebaseConfig.apiKey === "YOUR_API_KEY") {
+                    updateSyncStatus('warning', '未設定 Firebase (請點擊右上角 GitHub 設定查看教學)');
+                    renderTable();
+                    return;
+                }
+
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // 執行身份驗證 (RULE 3: Auth Before Queries)
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+
+                if (!currentUser) {
+                    throw new Error("無法完成雲端匿名登入");
+                }
+
+                // 設定共用雲端文件路徑 (RULE 1: Strict Paths - 公開資料讓所有團隊成員看到同一個紀錄)
+                rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'taxi_roster', 'shared_schedule');
+
+                // 監聽雲端即時資料變更
+                listenToCloudData();
+
+            } catch (error) {
+                console.error("初始化雲端失敗:", error);
+                updateSyncStatus('error', '雲端連線失敗，請檢查網絡或設定');
+                showToast('雲端連線失敗：' + error.message, 'error');
+            }
+        }
+
+        // 監聽雲端資料
+        function listenToCloudData() {
+            if (!currentUser || !rosterDocRef) return;
+
+            onSnapshot(rosterDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    cloudRecords = Array.isArray(data.records) ? data.records : [];
+                    
+                    // 更新最後儲存時間顯示
+                    if (data.updatedAt) {
+                        const date = new Date(data.updatedAt);
+                        document.getElementById('lastUpdatedText').textContent = 
+                            `雲端最後儲存時間：${date.toLocaleDateString('zh-HK')} ${date.toLocaleTimeString('zh-HK', {hour: '2-digit', minute:'2-digit', second:'2-digit'})}`;
+                    } else {
+                        document.getElementById('lastUpdatedText').textContent = '已與雲端同步';
+                    }
+                } else {
+                    // 第一次使用，雲端尚無文件
+                    cloudRecords = [];
+                    document.getElementById('lastUpdatedText').textContent = '雲端目前未有紀錄，請新增後按「儲存」';
+                }
+
+                // 如果目前沒有未儲存的本地修改，直接同步畫面；若有未儲存修改，提示用戶有新版本
+                if (!hasUnsavedChanges) {
+                    localRecords = JSON.parse(JSON.stringify(cloudRecords));
+                    renderTable();
+                    updateUnsavedUI(false);
+                } else if (!isSaving) {
+                    showToast('雲端資料已被其他同事更新！若要覆蓋請按儲存，或按「取消更改」載入最新資料。', 'warning');
+                }
+
+                updateSyncStatus('connected', '雲端已連線 (即時同步)');
+            }, (error) => {
+                console.error("讀取雲端資料錯誤:", error);
+                updateSyncStatus('error', '讀取雲端資料權限錯誤');
+                showToast('讀取雲端資料失敗，請檢查資料庫權限設定。', 'error');
+            });
+        }
+
+        // 處理新增紀錄 (先暫存到本地清單，並提示按儲存)
+        window.handleAddRecord = function(event) {
+            event.preventDefault();
+
+            const nameInput = document.getElementById('driverName');
+            const phoneInput = document.getElementById('driverPhone');
+            const dayCheckboxes = document.querySelectorAll('.day-checkbox:checked');
+            const shiftRadio = document.querySelector('input[name="shiftType"]:checked');
+
+            const name = nameInput.value.trim();
+            const phone = phoneInput.value.trim();
+            const selectedDays = Array.from(dayCheckboxes).map(cb => cb.value);
+            const shift = shiftRadio ? shiftRadio.value : '早更';
+
+            if (!name || !phone) {
+                showToast('請輸入司機姓名及電話號碼！', 'error');
+                return;
+            }
+
+            if (selectedDays.length === 0) {
+                showToast('請最少選擇一日（星期一至日）！', 'error');
+                return;
+            }
+
+            // 排序星期
+            selectedDays.sort((a, b) => dayOrder[a] - dayOrder[b]);
+
+            // 建立新紀錄物件
+            const newRecord = {
+                id: 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                name: name,
+                phone: phone,
+                days: selectedDays,
+                shift: shift,
+                createdAt: Date.now()
+            };
+
+            // 加入到本地清單最上方
+            localRecords.unshift(newRecord);
+            
+            // 標記為有未儲存變更
+            updateUnsavedUI(true);
+            renderTable();
+
+            // 重設表單
+            nameInput.value = '';
+            phoneInput.value = '';
+            dayCheckboxes.forEach(cb => cb.checked = false);
+            
+            showToast(`已暫存「${name}」的紀錄，請記得按「儲存」同步至雲端！`, 'info');
+        };
+
+        // 處理刪除紀錄 (先從本地清單移除，並提示按儲存)
+        window.handleDeleteRecord = function(recordId) {
+            const target = localRecords.find(r => r.id === recordId);
+            if (!target) return;
+
+            localRecords = localRecords.filter(r => r.id !== recordId);
+            updateUnsavedUI(true);
+            renderTable();
+            
+            showToast(`已暫時移除「${target.name}」，請按「儲存」正式更新雲端紀錄。`, 'info');
+        };
+
+        // 取消本地未儲存更改，還原成雲端最新版本
+        window.discardChanges = function() {
+            localRecords = JSON.parse(JSON.stringify(cloudRecords));
+            updateUnsavedUI(false);
+            renderTable();
+            showToast('已取消未儲存的更改，並還原為雲端最新紀錄。', 'info');
+        };
+
+        // 儲存至雲端 (關鍵功能：按下儲存制後，所有人先會睇到同一個紀錄)
+        window.saveToCloud = async function() {
+            if (!currentUser || !rosterDocRef) {
+                showToast('尚未連接雲端資料庫，無法儲存！請檢查設定。', 'error');
+                return;
+            }
+
+            isSaving = true;
+            const mainBtn = document.getElementById('mainSaveBtn');
+            const mainBtnText = document.getElementById('mainSaveBtnText');
+            const bannerBtn = document.getElementById('bannerSaveBtn');
+            
+            mainBtn.disabled = true;
+            bannerBtn.disabled = true;
+            mainBtnText.textContent = '儲存中...';
+
+            try {
+                await setDoc(rosterDocRef, {
+                    records: localRecords,
+                    updatedAt: Date.now(),
+                    updatedBy: currentUser.uid
+                });
+
+                cloudRecords = JSON.parse(JSON.stringify(localRecords));
+                updateUnsavedUI(false);
+                renderTable();
+                showToast('✅ 成功儲存至雲端！所有同事依家都睇到最新紀錄。', 'success');
+            } catch (error) {
+                console.error("儲存失敗:", error);
+                showToast('儲存失敗：' + error.message, 'error');
+            } finally {
+                isSaving = false;
+                mainBtn.disabled = false;
+                bannerBtn.disabled = false;
+                mainBtnText.textContent = '儲存紀錄並同步給所有人';
+            }
+        };
+
+        // 更新未儲存狀態 UI
+        function updateUnsavedUI(unsaved) {
+            hasUnsavedChanges = unsaved;
+            const banner = document.getElementById('unsavedBanner');
+            const mainBtn = document.getElementById('mainSaveBtn');
+
+            if (unsaved) {
+                banner.classList.remove('hidden');
+                mainBtn.classList.add('ring-4', 'ring-amber-400', 'animate-pulse');
+            } else {
+                banner.classList.add('hidden');
+                mainBtn.classList.remove('ring-4', 'ring-amber-400', 'animate-pulse');
+            }
+        }
+
+        // 渲染排班表格與手機卡片
+        window.renderTable = function() {
+            const tbody = document.getElementById('rosterTableBody');
+            const mobileList = document.getElementById('mobileRosterList');
+            const emptyState = document.getElementById('emptyState');
+            const countBadge = document.getElementById('recordCountBadge');
+
+            const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+            const filterDay = currentFilterDay;
+            const filterShift = currentFilterShift;
+
+            // 篩選資料
+            const filtered = localRecords.filter(record => {
+                const matchSearch = record.name.toLowerCase().includes(searchTerm) || 
+                                    record.phone.toLowerCase().includes(searchTerm);
+                const matchDay = filterDay === 'ALL' || (Array.isArray(record.days) && record.days.includes(filterDay));
+                const matchShift = filterShift === 'ALL' || record.shift === filterShift;
+                return matchSearch && matchDay && matchShift;
+            });
+
+            countBadge.textContent = `${filtered.length} 筆紀錄`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                mobileList.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            // 檢查該筆紀錄是否為尚未儲存的新增項目
+            const cloudIds = new Set(cloudRecords.map(r => r.id));
+
+            // 1. 生成手機版緊湊卡片 (一眼睇晒姓名、更份、電話、返工日)
+            mobileList.innerHTML = filtered.map(record => {
+                const isNewUnsaved = !cloudIds.has(record.id);
+                const daysBadges = (record.days || []).map(d => 
+                    `<span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 border border-slate-300 text-slate-800 font-bold text-xs">${d}</span>`
+                ).join('');
+
+                const shiftBadge = record.shift === '早更'
+                    ? `<span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">☀️ 早更</span>`
+                    : `<span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">🌙 夜更</span>`;
+
+                const unsavedTag = isNewUnsaved 
+                    ? `<span class="px-1.5 py-0.5 text-[10px] font-bold bg-amber-200 text-amber-900 rounded">未儲存</span>` 
+                    : '';
+
+                return `
+                    <div class="p-3 rounded-xl border ${isNewUnsaved ? 'bg-amber-50/50 border-amber-300' : 'bg-white border-slate-200'} shadow-sm flex flex-col gap-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-bold text-base text-slate-900">${escapeHTML(record.name)}</span>
+                                ${shiftBadge}
+                                ${unsavedTag}
+                            </div>
+                            <a href="tel:${escapeHTML(record.phone)}" class="text-xs font-mono font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-lg border border-red-200 active:bg-red-100 shrink-0">
+                                📞 ${escapeHTML(record.phone)}
+                            </a>
+                        </div>
+                        <div class="flex items-center justify-between pt-1.5 border-t border-slate-100">
+                            <div class="flex items-center gap-1 flex-wrap">
+                                <span class="text-xs text-slate-400 mr-0.5">星期:</span>
+                                ${daysBadges}
+                            </div>
+                            <button onclick="handleDeleteRecord('${record.id}')" 
+                                class="text-red-600 active:bg-red-600 active:text-white border border-red-200 px-2.5 py-1 rounded-lg text-xs font-bold transition">
+                                刪除
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 2. 生成電腦版表格
+            tbody.innerHTML = filtered.map(record => {
+                const isNewUnsaved = !cloudIds.has(record.id);
+                const daysBadges = (record.days || []).map(d => 
+                    `<span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs">星期${d}</span>`
+                ).join(' ');
+
+                const shiftBadge = record.shift === '早更'
+                    ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">☀️ 早更</span>`
+                    : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">🌙 夜更</span>`;
+
+                const unsavedTag = isNewUnsaved 
+                    ? `<span class="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold bg-amber-200 text-amber-900 rounded">未儲存</span>` 
+                    : '';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition ${isNewUnsaved ? 'bg-amber-50/40' : ''}">
+                        <td class="py-3.5 px-4 font-bold text-slate-800 whitespace-nowrap">
+                            ${escapeHTML(record.name)}${unsavedTag}
+                        </td>
+                        <td class="py-3.5 px-4 text-slate-600 whitespace-nowrap font-mono">
+                            <a href="tel:${escapeHTML(record.phone)}" class="hover:text-red-600 hover:underline flex items-center gap-1">
+                                <span>📞 ${escapeHTML(record.phone)}</span>
+                            </a>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <div class="flex flex-wrap gap-1">
+                                ${daysBadges}
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-4 whitespace-nowrap">
+                            ${shiftBadge}
+                        </td>
+                        <td class="py-3.5 px-4 text-right whitespace-nowrap">
+                            <button onclick="handleDeleteRecord('${record.id}')" 
+                                class="text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>刪除</span>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        // 更新頂部連線狀態顯示
+        function updateSyncStatus(state, text) {
+            const dot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = text;
+
+            dot.className = 'w-2.5 h-2.5 rounded-full ';
+            if (state === 'connected') {
+                dot.classList.add('bg-emerald-400');
+            } else if (state === 'warning') {
+                dot.classList.add('bg-amber-400');
+            } else {
+                dot.classList.add('bg-red-400');
+            }
+        }
+
+        // 顯示右下角提示訊息 (替代 alert)
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800 text-white';
+            if (type === 'success') bgClass = 'bg-emerald-700 text-white';
+            if (type === 'error') bgClass = 'bg-red-700 text-white';
+            if (type === 'warning') bgClass = 'bg-amber-500 text-slate-900 font-bold';
+
+            toast.className = `${bgClass} px-4 py-3 rounded-xl shadow-lg text-sm flex items-center justify-between gap-3 pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0`;
+            toast.innerHTML = `
+                <span>${escapeHTML(message)}</span>
+                <button onclick="this.parentElement.remove()" class="opacity-70 hover:opacity-100 font-bold">✕</button>
+            `;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4500);
+        }
+
+        // 防止 XSS 攻擊的 HTML 轉義函式
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Modal 控制
+        window.openSetupModal = () => document.getElementById('setupModal').classList.remove('hidden');
+        window.closeSetupModal = () => document.getElementById('setupModal').classList.add('hidden');
+
+        // 離開網頁前若仍有未儲存變更，提醒用戶
+        window.addEventListener('beforeunload', (e) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        // 頁面載入後啟動
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
