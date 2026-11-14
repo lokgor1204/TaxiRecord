@@ -34,7 +34,7 @@
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
                         <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.9</span>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v2.0.0</span>
                     </div>
                     <!-- 即時連線狀態顯示 -->
                     <div id="cloudStatusIndicator" class="flex items-center gap-1.5 text-[11px] text-amber-300 font-medium mt-0.5">
@@ -310,7 +310,7 @@
                 </form>
 
                 <!-- 備註清單 -->
-                <div id="notesList" class="space-y-2.5"></div>
+                <div id="notesList" class="space-y-3"></div>
 
                 <!-- 備註空狀態 -->
                 <div id="notesEmptyState" class="py-8 text-center text-slate-400">
@@ -446,7 +446,7 @@
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
             <p>的士編更雲端系統 • 請記得每次修改後點擊右上角「立即儲存並同步給所有人」。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.9.9</p>
+            <p class="font-mono text-slate-400 font-medium">Version 2.0.0</p>
         </div>
     </footer>
 
@@ -619,9 +619,9 @@
 
         function loadFromLocalStorage() {
             try {
-                const localRoster = localStorage.getItem('taxi_roster_records_v1.9.9');
-                const localNotes = localStorage.getItem('taxi_notes_records_v1.9.9');
-                const localDrivers = localStorage.getItem('taxi_drivers_db_v1.9.9');
+                const localRoster = localStorage.getItem('taxi_roster_records_v2.0.0');
+                const localNotes = localStorage.getItem('taxi_notes_records_v2.0.0');
+                const localDrivers = localStorage.getItem('taxi_drivers_db_v2.0.0');
                 
                 if (localRoster) rosterRecords = JSON.parse(localRoster);
                 if (localNotes) notesRecords = JSON.parse(localNotes);
@@ -633,9 +633,9 @@
 
         function saveToLocalStorage() {
             try {
-                localStorage.setItem('taxi_roster_records_v1.9.9', JSON.stringify(rosterRecords));
-                localStorage.setItem('taxi_notes_records_v1.9.9', JSON.stringify(notesRecords));
-                localStorage.setItem('taxi_drivers_db_v1.9.9', JSON.stringify(driversDb));
+                localStorage.setItem('taxi_roster_records_v2.0.0', JSON.stringify(rosterRecords));
+                localStorage.setItem('taxi_notes_records_v2.0.0', JSON.stringify(notesRecords));
+                localStorage.setItem('taxi_drivers_db_v2.0.0', JSON.stringify(driversDb));
             } catch (e) {
                 console.error("Local storage save error:", e);
             }
@@ -1073,20 +1073,27 @@
 
             if (!listEl) return;
             listEl.innerHTML = notesRecords.map(note => {
-                let dateBadge = (note.startDate || note.endDate) ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900"><i class="fa-regular fa-calendar"></i> ${escapeHTML(note.startDate || '即日起')} 至 ${escapeHTML(note.endDate || '另行通知')}</span>` : '';
-                let driverBadge = note.driverName ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-white"><i class="fa-solid fa-user"></i> ${escapeHTML(note.driverName)}</span>` : '';
-                let carBadge = note.carPlate ? `<span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-blue-100 text-blue-900"><i class="fa-solid fa-taxi"></i> ${escapeHTML(note.carPlate)}</span>` : '';
+                let dateBadge = (note.startDate || note.endDate) ? `<div class="mb-2"><span class="px-2.5 py-1 rounded text-xs font-bold bg-amber-100 text-amber-900 inline-flex items-center gap-1.5"><i class="fa-regular fa-calendar"></i> ${escapeHTML(note.startDate || '即日起')} 至 ${escapeHTML(note.endDate || '另行通知')}</span></div>` : '';
+                
+                let driverCol = note.driverName ? `<div class="flex items-center gap-1.5 font-bold text-slate-900 text-sm"><span class="text-slate-400 font-normal text-xs">司機：</span>${escapeHTML(note.driverName)}</div>` : `<div class="text-slate-400 text-xs italic">未指定司機</div>`;
+                let carCol = note.carPlate ? `<div class="flex items-center gap-1.5 font-mono font-bold text-blue-900 text-sm"><span class="text-slate-400 font-normal text-xs">車牌：</span>${escapeHTML(note.carPlate)}</div>` : `<div class="text-slate-400 text-xs italic">無車牌</div>`;
+                let contentCol = `<div class="text-sm text-slate-800 font-medium leading-relaxed">${escapeHTML(note.content)}</div>`;
 
                 return `
-                    <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-2">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-1.5 flex-wrap">${driverBadge} ${carBadge} ${dateBadge}</div>
-                            <div class="flex items-center gap-1">
-                                <button onclick="editNote('${note.id}')" class="text-xs text-indigo-600 px-2 py-1 hover:bg-indigo-50 rounded"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
-                                <button onclick="deleteNote('${note.id}')" class="text-xs text-rose-600 px-2 py-1 hover:bg-rose-50 rounded"><i class="fa-solid fa-trash-can"></i> 刪除</button>
+                    <div class="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-3">
+                        <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                            <div>${dateBadge}</div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button onclick="editNote('${note.id}')" class="text-xs font-bold text-indigo-600 px-2.5 py-1 hover:bg-indigo-50 rounded transition"><i class="fa-solid fa-pen-to-square"></i> 修改</button>
+                                <button onclick="deleteNote('${note.id}')" class="text-xs font-bold text-rose-600 px-2.5 py-1 hover:bg-rose-50 rounded transition"><i class="fa-solid fa-trash-can"></i> 刪除</button>
                             </div>
                         </div>
-                        <p class="text-sm text-slate-800 whitespace-pre-line">${escapeHTML(note.content)}</p>
+                        <!-- 三直行分欄：人名、車牌、備註事情 (與排更字體大小一致 text-sm) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center pt-1">
+                            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100">${driverCol}</div>
+                            <div class="bg-blue-50/50 p-2.5 rounded-lg border border-blue-100/60">${carCol}</div>
+                            <div class="bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/60 sm:col-span-1">${contentCol}</div>
+                        </div>
                     </div>
                 `;
             }).join('');
