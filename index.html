@@ -223,7 +223,7 @@
                         <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                             <span class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                                 <i class="fa-solid fa-arrow-down-a-z text-slate-400"></i>
-                                排序：正更優先 → 替更（同組按 A-Z）
+                                排序：⭐ 重點司機優先 → 正更 → 替更（同組按 A-Z）
                             </span>
                         </div>
 
@@ -1023,9 +1023,14 @@
             });
 
             filtered.sort((a, b) => {
+                const starA = a.isStarred ? 1 : 0;
+                const starB = b.isStarred ? 1 : 0;
+                if (starA !== starB) return starB - starA; // 星標優先
+
                 const typeA = (a.driverType || '正更') === '正更' ? 0 : 1;
                 const typeB = (b.driverType || '正更') === '正更' ? 0 : 1;
                 if (typeA !== typeB) return typeA - typeB;
+
                 return (a.name || '').trim().localeCompare((b.name || '').trim(), 'zh-HK');
             });
 
@@ -1040,13 +1045,18 @@
                     const isZhengGeng = (rec.driverType || '正更') === '正更';
                     const typeBadge = isZhengGeng ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800">替更</span>';
                     const shiftBadge = rec.shift === '早更' ? '<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun"></i> 早更</span>' : '<span class="px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon"></i> 夜更</span>';
+                    const starIconClass = rec.isStarred ? 'fa-solid fa-star text-amber-400 drop-shadow-xs' : 'fa-regular fa-star text-slate-300 hover:text-amber-400';
                     const sortedDays = DAYS_ORDER.filter(d => rec.days && rec.days.includes(d));
                     const daysHtml = sortedDays.length === 7 ? '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">全星期</span>' : sortedDays.map(d => `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">${d.replace('星期', '')}</span>`).join('');
 
                     return `
-                        <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 space-y-2">
+                        <div class="bg-white rounded-xl p-3.5 shadow-sm border ${rec.isStarred ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} space-y-2">
                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2"><span class="font-bold text-slate-900">${escapeHTML(rec.name)}</span>${typeBadge}${shiftBadge}</div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="toggleStarRecord('${rec.id}')" class="text-base p-1 transition transform hover:scale-110" title="切換重點司機"><i class="${starIconClass}"></i></button>
+                                    <span class="font-bold text-slate-900">${escapeHTML(rec.name)}</span>
+                                    ${typeBadge}${shiftBadge}
+                                </div>
                                 <div class="flex items-center gap-1">
                                     <button onclick="editRecord('${rec.id}')" class="text-slate-400 hover:text-indigo-600 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
                                     <button onclick="deleteRecord('${rec.id}')" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-trash-can"></i></button>
@@ -1067,12 +1077,17 @@
                     const isZhengGeng = (rec.driverType || '正更') === '正更';
                     const typeBadge = isZhengGeng ? '<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">替更</span>';
                     const shiftBadge = rec.shift === '早更' ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-sun"></i> 早更</span>' : '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800"><i class="fa-solid fa-moon"></i> 夜更</span>';
+                    const starIconClass = rec.isStarred ? 'fa-solid fa-star text-amber-400 drop-shadow-xs' : 'fa-regular fa-star text-slate-300 hover:text-amber-400';
                     const sortedDays = DAYS_ORDER.filter(d => rec.days && rec.days.includes(d));
                     const daysHtml = sortedDays.length === 7 ? '<span class="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">全星期</span>' : sortedDays.map(d => `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">${d.replace('星期', '')}</span>`).join('');
 
                     return `
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="px-5 py-3.5 font-bold text-slate-900 flex items-center gap-2"><span>${escapeHTML(rec.name)}</span>${typeBadge}</td>
+                        <tr class="hover:bg-slate-50 transition ${rec.isStarred ? 'bg-amber-50/20' : ''}">
+                            <td class="px-5 py-3.5 font-bold text-slate-900 flex items-center gap-2">
+                                <button onclick="toggleStarRecord('${rec.id}')" class="text-base p-1 transition transform hover:scale-110" title="切換重點司機"><i class="${starIconClass}"></i></button>
+                                <span>${escapeHTML(rec.name)}</span>
+                                ${typeBadge}
+                            </td>
                             <td class="px-4 py-3.5">${shiftBadge}</td>
                             <td class="px-4 py-3.5"><div class="flex flex-wrap gap-1">${daysHtml}</div></td>
                             <td class="px-4 py-3.5">
@@ -1088,6 +1103,15 @@
                         </tr>
                     `;
                 }).join('');
+            }
+        };
+
+        window.toggleStarRecord = function(id) {
+            const rec = rosterRecords.find(r => r.id === id);
+            if (rec) {
+                rec.isStarred = !rec.isStarred;
+                renderTable();
+                showToast(rec.isStarred ? '已設為重點編更司機！' : '已取消重點標記', 'success');
             }
         };
 
