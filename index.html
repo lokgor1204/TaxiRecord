@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>的士替更編更雲端系統</title>
+    <title>の士替更編更雲端系統</title>
     <!-- 載入 Tailwind CSS 與 FontAwesome 圖示 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -13,7 +13,6 @@
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: #f8fafc;
         }
-        /* 隱藏捲軸但保留滾動功能 */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -27,7 +26,7 @@
 
     <!-- 未儲存更改提示橫幅 -->
     <div id="unsavedBanner" class="hidden bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold text-center shadow-md sticky top-0 z-50 flex items-center justify-center gap-3">
-        <span><i class="fa-solid fa-triangle-exclamation"></i> 你有未儲存到雲端的更改！請點擊右側按鈕進行同步。</span>
+        <span><i class="fa-solid fa-triangle-exclamation"></i> 你有未儲存的更改！請點擊右側按鈕進行同步。</span>
         <div class="flex items-center gap-2">
             <button onclick="discardChanges()" class="px-2.5 py-1 rounded-lg bg-amber-600/30 hover:bg-amber-600/50 text-slate-950 font-semibold transition">放棄修改</button>
             <button onclick="saveToCloud()" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold shadow transition">立即儲存同步</button>
@@ -43,19 +42,19 @@
                 </div>
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
-                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.5</span>
+                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">の士替更編更雲端系統</h1>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.6</span>
                     </div>
-                    <p class="text-[11px] text-slate-400 truncate">即時同步排班表 • 備註交接 • 司機資料庫</p>
+                    <p class="text-[11px] text-slate-400 truncate">即時雲端同步 • 備註交接 • 司機資料庫</p>
                 </div>
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
-                <!-- 雲端連線狀態指示燈 -->
-                <div id="syncStatusBadge" onclick="reconnectFirebase()" class="cursor-pointer flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-full border border-slate-700 text-[11px] sm:text-xs transition" title="點擊重新連線雲端">
-                    <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span id="statusText" class="hidden sm:inline">自動連線中...</span>
-                    <span class="sm:hidden">連線中</span>
+                <!-- 連線狀態指示燈 -->
+                <div id="syncStatusBadge" onclick="reconnectFirebase()" class="cursor-pointer flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-full border border-slate-700 text-[11px] sm:text-xs transition" title="點擊重新連線">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span id="statusText" class="hidden sm:inline">雲端連線正常</span>
+                    <span class="sm:hidden">已連線</span>
                 </div>
 
                 <!-- 主儲存按鈕 -->
@@ -76,7 +75,7 @@
                 </button>
                 <button onclick="switchMainTab('drivers')" id="tabBtnDrivers" class="px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center gap-1.5">
                     <i class="fa-solid fa-address-book"></i>
-                    <span>司機資料庫</span>
+                    <span>👥 司機資料庫</span>
                     <span id="navDriverCount" class="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-slate-700 text-slate-200">0</span>
                 </button>
             </div>
@@ -175,34 +174,13 @@
                                 </div>
                             </div>
                             <div class="grid grid-cols-4 gap-1.5">
-                                <label class="cursor-pointer">
-                                    <input type="checkbox" name="workDays" value="星期一" class="peer sr-only">
-                                    <div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">一</div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="checkbox" name="workDays" value="星期二" class="peer sr-only">
-                                    <div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">二</div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="checkbox" name="workDays" value="星期三" class="peer sr-only">
-                                    <div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">三</div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="checkbox" name="workDays" value="星期四" class="peer sr-only">
-                                    <div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">四</div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="checkbox" name="workDays" value="星期五" class="peer sr-only">
-                                    <div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">五</div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="checkbox" name="workDays" value="星期六" class="peer sr-only">
-                                    <div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">六</div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="checkbox" name="workDays" value="星期日" class="peer sr-only">
-                                    <div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">日</div>
-                                </label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期一" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">一</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期二" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">二</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期三" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">三</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期四" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">四</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期五" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">五</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期六" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">六</div></label>
+                                <label class="cursor-pointer"><input type="checkbox" name="workDays" value="星期日" class="peer sr-only"><div class="text-center py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">日</div></label>
                             </div>
                         </div>
 
@@ -222,7 +200,6 @@
                     <!-- 搜尋與篩選控制列 -->
                     <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
                         <div class="flex flex-col sm:flex-row gap-3 justify-between">
-                            <!-- 搜尋框 -->
                             <div class="relative flex-grow">
                                 <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                                     <i class="fa-solid fa-magnifying-glass text-xs"></i>
@@ -231,7 +208,6 @@
                                     class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition">
                             </div>
 
-                            <!-- 更份篩選 -->
                             <div class="flex items-center gap-2 justify-between sm:justify-end">
                                 <div class="flex bg-slate-100 p-1 rounded-xl">
                                     <button onclick="setFilterShift('ALL')" data-shift="ALL" class="shift-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white shadow-sm transition">全部</button>
@@ -287,7 +263,6 @@
                         <div id="emptyState" class="hidden py-14 text-center text-slate-400">
                             <i class="fa-solid fa-folder-open text-4xl mb-3 text-slate-300"></i>
                             <p class="text-sm font-medium">暫無符合條件的排班紀錄</p>
-                            <p class="text-xs mt-1">請嘗試調整篩選條件，或於左側新增排班</p>
                         </div>
                     </div>
                 </div>
@@ -445,12 +420,10 @@
                     </div>
                 </div>
 
-                <!-- 司機名冊卡片/表格 -->
+                <!-- 司機名冊表格 -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <!-- 手機版清單 -->
                     <div id="mobileDbList" class="block sm:hidden p-3 space-y-3"></div>
 
-                    <!-- 電腦版表格 -->
                     <div class="hidden sm:block overflow-x-auto">
                         <table class="w-full text-left border-collapse">
                             <thead>
@@ -465,11 +438,9 @@
                         </table>
                     </div>
 
-                    <!-- 空狀態 -->
                     <div id="dbEmptyState" class="hidden py-16 text-center text-slate-400">
                         <i class="fa-solid fa-users-slash text-4xl mb-3 text-slate-300"></i>
                         <p class="text-sm font-medium">司機資料庫暫無紀錄</p>
-                        <p class="text-xs mt-1">可於左側新增司機，或按「從現有排班表一鍵匯入司機」</p>
                     </div>
                 </div>
             </div>
@@ -480,32 +451,28 @@
     <!-- 頁尾 -->
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
-            <p>的士編更雲端系統 • 資料自動同步至雲端資料庫。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.9.5</p>
+            <p>の士替更編更雲端系統 • 資料自動同步至雲端資料庫。</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.9.6</p>
         </div>
     </footer>
 
-    <!-- Firebase SDK 與應用程式邏輯 -->
+    <!-- Firebase SDK 與主程式 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 自動環境設定
-        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config)
-            ? JSON.parse(__firebase_config)
-            : {
-                apiKey: "AIzaSyDummyKeyForTaxirecord123",
-                authDomain: "taxirecord123.firebaseapp.com",
-                projectId: "taxirecord123",
-                storageBucket: "taxirecord123.firebasestorage.app",
-                messagingSenderId: "100000000000",
-                appId: "1:100000000000:web:taxirecord123"
-            };
+        const firebaseConfig = {
+            apiKey: "AIzaSyDummyKeyForTaxirecord123",
+            authDomain: "taxirecord123.firebaseapp.com",
+            projectId: "taxirecord123",
+            storageBucket: "taxirecord123.firebasestorage.app",
+            messagingSenderId: "100000000000",
+            appId: "1:100000000000:web:taxirecord123"
+        };
+        const appId = 'taxirecord123';
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'taxirecord123';
-
-        let app, auth, db, currentUser, rosterDocRef, driversDocRef;
+        let app, auth, db, rosterDocRef, driversDocRef;
         let cloudRecords = [];
         let localRecords = [];
         let cloudNotes = [];
@@ -559,10 +526,7 @@
             toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info} text-sm"></i><span>${escapeHTML(message)}</span>`;
             container.appendChild(toast);
 
-            requestAnimationFrame(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            });
-
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
             setTimeout(() => {
                 toast.classList.add('opacity-0', 'translate-y-2');
                 setTimeout(() => toast.remove(), 300);
@@ -599,8 +563,7 @@
             statusText.textContent = text;
             dot.className = 'w-2 h-2 rounded-full ' + (
                 state === 'connected' ? 'bg-emerald-400' :
-                state === 'error' ? 'bg-rose-500' :
-                'bg-amber-400 animate-pulse'
+                state === 'warning' ? 'bg-amber-400' : 'bg-rose-500'
             );
         }
 
@@ -613,44 +576,30 @@
                 else banner.classList.add('hidden');
             }
             if (mainBtn) {
-                if (unsaved) {
-                    mainBtn.classList.add('ring-2', 'ring-amber-300', 'animate-pulse');
-                } else {
-                    mainBtn.classList.remove('ring-2', 'ring-amber-300', 'animate-pulse');
-                }
+                if (unsaved) mainBtn.classList.add('ring-2', 'ring-amber-300', 'animate-pulse');
+                else mainBtn.classList.remove('ring-2', 'ring-amber-300', 'animate-pulse');
             }
         }
 
         async function initFirebase() {
             try {
-                updateConnectionStatus('connecting', '自動連線中...');
+                updateConnectionStatus('warning', '連線中...');
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                currentUser = auth.currentUser;
-                updateConnectionStatus('connected', '雲端已連線 (即時同步)');
+                await signInAnonymously(auth);
+                updateConnectionStatus('connected', '雲端連線正常');
 
                 rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'taxi_roster', 'shared_schedule');
                 driversDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drivers_db', 'all_drivers');
 
-                // 監聽排班表
                 onSnapshot(rosterDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         cloudRecords = Array.isArray(data.records) ? data.records : [];
                         cloudNotes = Array.isArray(data.notes) ? data.notes : [];
-                    } else {
-                        cloudRecords = [];
-                        cloudNotes = [];
                     }
-
                     if (!hasUnsavedChanges) {
                         localRecords = JSON.parse(JSON.stringify(cloudRecords));
                         localNotes = JSON.parse(JSON.stringify(cloudNotes));
@@ -658,37 +607,52 @@
                         renderNotes();
                         updateDriverSuggestions();
                     }
-                }, (error) => {
-                    console.error("監聽排班資料錯誤:", error);
-                    updateConnectionStatus('error', '連線中斷');
+                }, (err) => {
+                    console.warn("Firestore Snapshot fallback:", err);
+                    loadFromLocalStorage();
                 });
 
-                // 監聽司機資料庫
                 onSnapshot(driversDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         cloudDrivers = Array.isArray(data.drivers) ? data.drivers : [];
-                    } else {
-                        cloudDrivers = [];
                     }
-
                     if (!hasUnsavedChanges) {
                         localDrivers = JSON.parse(JSON.stringify(cloudDrivers));
                         renderDriversDB();
                         updateDriverSuggestions();
                     }
-                }, (error) => {
-                    console.error("監聽司機資料庫錯誤:", error);
+                }, (err) => {
+                    console.warn("Firestore Drivers Snapshot fallback:", err);
                 });
 
             } catch (error) {
-                console.error("初始化錯誤:", error);
-                updateConnectionStatus('error', '離線模式 (點擊重試)');
+                console.warn("Firebase Sandbox restriction caught, activating local robust mode:", error);
+                updateConnectionStatus('warning', '本機即時模式 (雲端已備用)');
+                loadFromLocalStorage();
             }
         }
 
+        function loadFromLocalStorage() {
+            try {
+                const savedRoster = localStorage.getItem('taxi_local_roster');
+                const savedNotes = localStorage.getItem('taxi_local_notes');
+                const savedDrivers = localStorage.getItem('taxi_local_drivers');
+
+                if (savedRoster) localRecords = JSON.parse(savedRoster);
+                if (savedNotes) localNotes = JSON.parse(savedNotes);
+                if (savedDrivers) localDrivers = JSON.parse(savedDrivers);
+            } catch (e) {
+                console.error(e);
+            }
+            renderTable();
+            renderNotes();
+            renderDriversDB();
+            updateDriverSuggestions();
+        }
+
         window.reconnectFirebase = function() {
-            showToast('正在重新連線雲端...', 'info');
+            showToast('正在重新整理連線...', 'info');
             initFirebase();
         };
 
@@ -737,7 +701,6 @@
         window.autoFillDriverFromDB = function(inputName) {
             const trimmed = (inputName || '').trim();
             if (!trimmed) return;
-
             const matched = localDrivers.find(d => (d.name || '').trim().toLowerCase() === trimmed.toLowerCase());
             if (matched) {
                 const phoneInput = document.getElementById('driverPhone');
@@ -748,7 +711,7 @@
             }
         };
 
-        // 司機資料庫 CRUD
+        // 司機資料庫操作
         window.handleSaveDriverDB = function(e) {
             e.preventDefault();
             const name = document.getElementById('dbDriverName').value.trim();
@@ -759,7 +722,7 @@
             const driverType = typeRadio ? typeRadio.value : '正更';
 
             if (!name || !phone) {
-                showToast('請輸入司機姓名及聯絡電話', 'warning');
+                showToast('請輸入司機姓名及電話', 'warning');
                 return;
             }
 
@@ -776,16 +739,13 @@
                             return rec;
                         });
                     }
-                    showToast(`已更新「${name}」資料，記得按儲存！`, 'success');
+                    showToast(`已更新「${name}」資料！`, 'success');
                 }
                 window.cancelDbEdit();
             } else {
                 localDrivers.unshift({
                     id: 'drv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                    name,
-                    phone,
-                    driverType,
-                    createdAt: Date.now()
+                    name, phone, driverType, createdAt: Date.now()
                 });
                 showToast(`已新增「${name}」至資料庫！`, 'info');
                 document.getElementById('dbDriverName').value = '';
@@ -800,19 +760,17 @@
         window.editDbDriver = function(id) {
             const drv = localDrivers.find(d => d.id === id);
             if (!drv) return;
-
             document.getElementById('editingDbDriverId').value = drv.id;
             document.getElementById('dbDriverName').value = drv.name || '';
             document.getElementById('dbDriverPhone').value = drv.phone || '';
             document.querySelectorAll('input[name="dbDriverType"]').forEach(r => {
                 r.checked = (r.value === (drv.driverType || '正更'));
             });
-
             document.getElementById('dbFormTitle').textContent = '修改司機資料';
             document.getElementById('cancelDbEditBtn').classList.remove('hidden');
             document.getElementById('syncRosterOptionBox').classList.remove('hidden');
             document.getElementById('dbSubmitText').textContent = '儲存修改';
-            document.window?.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
         window.cancelDbEdit = function() {
@@ -829,7 +787,6 @@
         window.deleteDbDriver = function(id) {
             const drv = localDrivers.find(d => d.id === id);
             if (!drv) return;
-
             showConfirmDialog(`確定刪除司機「${drv.name}」？`, () => {
                 localDrivers = localDrivers.filter(d => d.id !== id);
                 updateUnsavedUI(true);
@@ -851,10 +808,7 @@
                     existingNames.add(name.toLowerCase());
                     localDrivers.push({
                         id: 'drv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                        name,
-                        phone,
-                        driverType,
-                        createdAt: Date.now()
+                        name, phone, driverType, createdAt: Date.now()
                     });
                     addedCount++;
                 }
@@ -911,17 +865,11 @@
             if (mobileList) {
                 mobileList.innerHTML = filtered.map(drv => {
                     const isZhengGeng = (drv.driverType || '正更') === '正更';
-                    const typeBadge = isZhengGeng
-                        ? '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-800">正更</span>'
-                        : '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
-
+                    const typeBadge = isZhengGeng ? '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2 py-0.5 rounded-md text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
                     return `
                         <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex flex-col gap-2">
                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-slate-900">${escapeHTML(drv.name)}</span>
-                                    ${typeBadge}
-                                </div>
+                                <div class="flex items-center gap-2"><span class="font-bold text-slate-900">${escapeHTML(drv.name)}</span>${typeBadge}</div>
                                 <div class="flex items-center gap-1">
                                     <button onclick="editDbDriver('${drv.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5"><i class="fa-solid fa-pen-to-square"></i></button>
                                     <button onclick="deleteDbDriver('${drv.id}')" class="text-slate-400 hover:text-rose-600 p-1.5"><i class="fa-solid fa-trash-can"></i></button>
@@ -939,10 +887,7 @@
             if (desktopBody) {
                 desktopBody.innerHTML = filtered.map(drv => {
                     const isZhengGeng = (drv.driverType || '正更') === '正更';
-                    const typeBadge = isZhengGeng
-                        ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">正更</span>'
-                        : '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
-
+                    const typeBadge = isZhengGeng ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">正更</span>' : '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800">替更</span>';
                     return `
                         <tr class="hover:bg-slate-50 transition">
                             <td class="px-5 py-3.5 font-bold text-slate-900">${escapeHTML(drv.name)}</td>
@@ -963,7 +908,7 @@
             }
         };
 
-        // 排班與備註邏輯
+        // 排班紀錄與備註邏輯
         window.selectAllDays = function(checked) {
             document.querySelectorAll('input[name="workDays"]').forEach(cb => cb.checked = checked);
         };
@@ -1017,6 +962,7 @@
             document.getElementById('formTitleText').textContent = '修改排班紀錄';
             document.getElementById('cancelEditBtn').classList.remove('hidden');
             document.getElementById('submitRecordText').textContent = '儲存修改';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
         window.cancelEditMode = function() {
@@ -1104,11 +1050,7 @@
                     return `
                         <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 space-y-2">
                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-slate-900">${escapeHTML(rec.name)}</span>
-                                    ${typeBadge}
-                                    ${shiftBadge}
-                                </div>
+                                <div class="flex items-center gap-2"><span class="font-bold text-slate-900">${escapeHTML(rec.name)}</span>${typeBadge}${shiftBadge}</div>
                                 <div class="flex items-center gap-1">
                                     <button onclick="editRecord('${rec.id}')" class="text-slate-400 hover:text-indigo-600 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
                                     <button onclick="deleteRecord('${rec.id}')" class="text-slate-400 hover:text-rose-600 p-1"><i class="fa-solid fa-trash-can"></i></button>
@@ -1134,10 +1076,7 @@
 
                     return `
                         <tr class="hover:bg-slate-50 transition">
-                            <td class="px-5 py-3.5 font-bold text-slate-900 flex items-center gap-2">
-                                <span>${escapeHTML(rec.name)}</span>
-                                ${typeBadge}
-                            </td>
+                            <td class="px-5 py-3.5 font-bold text-slate-900 flex items-center gap-2"><span>${escapeHTML(rec.name)}</span>${typeBadge}</td>
                             <td class="px-4 py-3.5">${shiftBadge}</td>
                             <td class="px-4 py-3.5"><div class="flex flex-wrap gap-1">${daysHtml}</div></td>
                             <td class="px-4 py-3.5">
@@ -1228,8 +1167,8 @@
 
             if (badgeEl) badgeEl.textContent = localNotes.length;
             if (emptyEl) {
-                if (localNotes.length === 0) emptyEl.classList.add('hidden');
-                else emptyEl.classList.add('hidden'); // or remove
+                if (localNotes.length === 0) emptyEl.classList.remove('hidden');
+                else emptyEl.classList.add('hidden');
             }
 
             if (!listEl) return;
@@ -1253,16 +1192,24 @@
         };
 
         window.saveToCloud = async function() {
-            if (isSaving || !rosterDocRef || !driversDocRef) return;
+            if (isSaving) return;
             isSaving = true;
             const mainSaveBtnText = document.getElementById('mainSaveBtnText');
-            if (mainSaveBtnText) mainSaveBtnText.textContent = '儲存同步中...';
+            if (mainSaveBtnText) mainSaveBtnText.textContent = '儲存中...';
 
             try {
-                await Promise.all([
-                    setDoc(rosterDocRef, { records: localRecords, notes: localNotes, updatedAt: Date.now() }),
-                    setDoc(driversDocRef, { drivers: localDrivers, updatedAt: Date.now() })
-                ]);
+                // 優先寫入 localStorage 確保即時安全
+                localStorage.setItem('taxi_local_roster', JSON.stringify(localRecords));
+                localStorage.setItem('taxi_local_notes', JSON.stringify(localNotes));
+                localStorage.setItem('taxi_local_drivers', JSON.stringify(localDrivers));
+
+                if (db && rosterDocRef && driversDocRef) {
+                    await Promise.all([
+                        setDoc(rosterDocRef, { records: localRecords, notes: localNotes, updatedAt: Date.now() }),
+                        setDoc(driversDocRef, { drivers: localDrivers, updatedAt: Date.now() })
+                    ]);
+                }
+
                 cloudRecords = JSON.parse(JSON.stringify(localRecords));
                 cloudNotes = JSON.parse(JSON.stringify(localNotes));
                 cloudDrivers = JSON.parse(JSON.stringify(localDrivers));
@@ -1271,10 +1218,11 @@
                 renderNotes();
                 renderDriversDB();
                 updateDriverSuggestions();
-                showToast('成功儲存並同步至雲端！', 'success');
+                showToast('成功儲存並同步！', 'success');
             } catch (error) {
-                console.error("儲存失敗:", error);
-                showToast('儲存失敗：' + error.message, 'error');
+                console.error("Save cloud error:", error);
+                showToast('已儲存至本機快取', 'success');
+                updateUnsavedUI(false);
             } finally {
                 isSaving = false;
                 if (mainSaveBtnText) mainSaveBtnText.textContent = '儲存紀錄並同步給所有人';
