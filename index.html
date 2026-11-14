@@ -38,8 +38,8 @@
                     <i class="fa-solid fa-taxi text-white text-base"></i>
                 </div>
                 <div class="min-w-0">
-                    <h1 class="font-bold text-sm sm:text-lg tracking-tight whitespace-nowrap leading-tight text-white">的士編更雲端系統</h1>
-                    <p class="text-[11px] text-slate-400 truncate">團隊共用排班表</p>
+                    <h1 class="font-bold text-xs sm:text-lg tracking-tight whitespace-nowrap leading-tight text-white">的士編更雲端系統</h1>
+                    <p class="text-[10px] sm:text-[11px] text-slate-400 truncate">團隊共用排班表</p>
                 </div>
             </div>
 
@@ -103,25 +103,25 @@
                         <label class="block text-xs font-bold text-slate-700 mb-1.5">每星期返工星期 (可選多個) <span class="text-rose-500">*</span></label>
                         <div class="grid grid-cols-4 gap-1.5">
                             <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
-                                <input type="checkbox" name="workDay" value="星期一" class="hidden"> 星期一
+                                <input type="checkbox" name="workDay" value="星期一" class="hidden"> 一
                             </label>
                             <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
-                                <input type="checkbox" name="workDay" value="星期二" class="hidden"> 星期二
+                                <input type="checkbox" name="workDay" value="星期二" class="hidden"> 二
                             </label>
                             <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
-                                <input type="checkbox" name="workDay" value="星期三" class="hidden"> 星期三
+                                <input type="checkbox" name="workDay" value="星期三" class="hidden"> 三
                             </label>
                             <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
-                                <input type="checkbox" name="workDay" value="星期四" class="hidden"> 星期四
+                                <input type="checkbox" name="workDay" value="星期四" class="hidden"> 四
                             </label>
                             <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
-                                <input type="checkbox" name="workDay" value="星期五" class="hidden"> 星期五
+                                <input type="checkbox" name="workDay" value="星期五" class="hidden"> 五
                             </label>
                             <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
-                                <input type="checkbox" name="workDay" value="星期六" class="hidden"> 星期六
+                                <input type="checkbox" name="workDay" value="星期六" class="hidden"> 六
                             </label>
                             <label class="flex items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 text-xs font-medium has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600 transition">
-                                <input type="checkbox" name="workDay" value="星期日" class="hidden"> 星期日
+                                <input type="checkbox" name="workDay" value="星期日" class="hidden"> 日
                             </label>
                         </div>
                     </div>
@@ -212,7 +212,7 @@
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
             <p>的士編更雲端系統 • 資料儲存於獨立雲端資料庫，更新網頁程式碼絕不影響現有紀錄。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.4.2</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.4.3</p>
         </div>
     </footer>
 
@@ -558,7 +558,7 @@
                                 </button>
                             </div>
                             <div class="flex flex-wrap gap-1">
-                                ${sortedDays.map(d => `<span class="px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded text-xs font-semibold">${escapeHTML(d)}</span>`).join('')}
+                                ${sortedDays.map(d => `<span class="px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded text-xs font-semibold">${escapeHTML(d.replace('星期', ''))}</span>`).join('')}
                             </div>
                             <div class="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
                                 <a href="tel:${escapeHTML(rec.phone)}" class="inline-flex items-center gap-1.5 text-sm font-mono font-semibold text-slate-700 hover:text-red-600">
@@ -602,7 +602,7 @@
                             </td>
                             <td class="px-5 py-3.5">
                                 <div class="flex flex-wrap gap-1.5">
-                                    ${sortedDays.map(d => `<span class="px-2.5 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-md text-xs font-semibold">${escapeHTML(d)}</span>`).join('')}
+                                    ${sortedDays.map(d => `<span class="px-2.5 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-md text-xs font-semibold">${escapeHTML(d.replace('星期', ''))}</span>`).join('')}
                                 </div>
                             </td>
                             <td class="px-5 py-3.5">${shiftBadge}</td>
