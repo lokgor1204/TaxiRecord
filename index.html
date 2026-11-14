@@ -34,18 +34,18 @@
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
                         <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.5</span>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v1.9.6</span>
                     </div>
-                    <p class="text-[11px] text-slate-400 truncate">即時雲端同步 • 備註交接 • 司機資料庫</p>
+                    <p class="text-[11px] text-slate-400 truncate">手動雲端儲存同步 • 備註交接 • 司機資料庫</p>
                 </div>
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
-                <!-- 連線狀態指示燈 -->
-                <div id="syncStatusBadge" onclick="reconnectFirebase()" class="cursor-pointer flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-full border border-slate-700 text-xs transition" title="點擊重新連線">
-                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span id="statusText">雲端即時連線中</span>
-                </div>
+                <!-- 實際儲存同步按鈕 -->
+                <button onclick="manualSaveAndSyncToCloud()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition flex items-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-cloud-arrow-up animate-bounce"></i>
+                    <span>立即儲存並同步給所有人</span>
+                </button>
             </div>
         </div>
 
@@ -434,8 +434,8 @@
     <!-- 頁尾 -->
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
-            <p>的士編更雲端系統 • 資料自動即時同步至雲端資料庫。</p>
-            <p class="font-mono text-slate-400 font-medium">Version 1.9.5</p>
+            <p>的士編更雲端系統 • 請記得每次修改後點擊右上角「立即儲存並同步給所有人」。</p>
+            <p class="font-mono text-slate-400 font-medium">Version 1.9.6</p>
         </div>
     </footer>
 
@@ -443,7 +443,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDummyKeyForTaxirecord123",
@@ -533,75 +533,58 @@
             };
         }
 
-        function updateConnectionStatus(state, text) {
-            const dot = document.getElementById('statusDot');
-            const statusText = document.getElementById('statusText');
-            if (!dot || !statusText) return;
-
-            statusText.textContent = text;
-            dot.className = 'w-2.5 h-2.5 rounded-full ' + (
-                state === 'connected' ? 'bg-emerald-400 animate-pulse' :
-                state === 'warning' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'
-            );
-        }
-
-        async function initFirebase() {
+        async function initFirebaseAndLoad() {
             try {
-                updateConnectionStatus('warning', '雲端連線中...');
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
                 await signInAnonymously(auth);
-                updateConnectionStatus('connected', '雲端即時連線中');
 
                 rosterDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'taxi_roster', 'shared_schedule');
                 driversDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drivers_db', 'all_drivers');
 
-                // 即時監聽排班與備註
-                onSnapshot(rosterDocRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        rosterRecords = Array.isArray(data.records) ? data.records : [];
-                        notesRecords = Array.isArray(data.notes) ? data.notes : [];
-                    } else {
-                        rosterRecords = [];
-                        notesRecords = [];
-                    }
-                    renderTable();
-                    renderNotes();
-                    updateDriverSuggestions();
-                }, (err) => {
-                    console.warn("Roster snapshot error:", err);
+                // 讀取雲端資料
+                const [rosterSnap, driversSnap] = await Promise.all([
+                    getDoc(rosterDocRef),
+                    getDoc(driversDocRef)
+                ]);
+
+                let loadedCloud = false;
+                if (rosterSnap.exists()) {
+                    const data = rosterSnap.data();
+                    rosterRecords = Array.isArray(data.records) ? data.records : [];
+                    notesRecords = Array.isArray(data.notes) ? data.notes : [];
+                    loadedCloud = true;
+                }
+                if (driversSnap.exists()) {
+                    const data = driversSnap.data();
+                    driversDb = Array.isArray(data.drivers) ? data.drivers : [];
+                    loadedCloud = true;
+                }
+
+                if (loadedCloud) {
+                    showToast('成功從雲端載入最新排班與司機資料！', 'success');
+                } else {
                     loadFromLocalStorage();
-                });
-
-                // 即時監聽司機資料庫
-                onSnapshot(driversDocRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        driversDb = Array.isArray(data.drivers) ? data.drivers : [];
-                    } else {
-                        driversDb = [];
-                    }
-                    renderDriversDB();
-                    updateDriverSuggestions();
-                }, (err) => {
-                    console.warn("Drivers snapshot error:", err);
-                });
-
+                }
             } catch (error) {
-                console.warn("Firebase Sandbox fallback active:", error);
-                updateConnectionStatus('warning', '本機離線模式 (自動備用)');
+                console.warn("Cloud load fallback to local:", error);
                 loadFromLocalStorage();
+                showToast('已載入本地儲存紀錄', 'warning');
             }
+
+            renderTable();
+            renderNotes();
+            renderDriversDB();
+            updateDriverSuggestions();
         }
 
         function loadFromLocalStorage() {
             try {
-                const savedRoster = localStorage.getItem('taxi_local_roster_v195');
-                const savedNotes = localStorage.getItem('taxi_local_notes_v195');
-                const savedDrivers = localStorage.getItem('taxi_local_drivers_v195');
+                const savedRoster = localStorage.getItem('taxi_local_roster_v196');
+                const savedNotes = localStorage.getItem('taxi_local_notes_v196');
+                const savedDrivers = localStorage.getItem('taxi_local_drivers_v196');
 
                 if (savedRoster) rosterRecords = JSON.parse(savedRoster);
                 if (savedNotes) notesRecords = JSON.parse(savedNotes);
@@ -609,33 +592,28 @@
             } catch (e) {
                 console.error(e);
             }
-            renderTable();
-            renderNotes();
-            renderDriversDB();
-            updateDriverSuggestions();
         }
 
-        async function syncToCloud() {
-            // 同步寫入 localStorage 作為備用
+        // 手動點擊儲存並上傳雲端
+        window.manualSaveAndSyncToCloud = async function() {
             try {
-                localStorage.setItem('taxi_local_roster_v195', JSON.stringify(rosterRecords));
-                localStorage.setItem('taxi_local_notes_v195', JSON.stringify(notesRecords));
-                localStorage.setItem('taxi_local_drivers_v195', JSON.stringify(driversDb));
+                localStorage.setItem('taxi_local_roster_v196', JSON.stringify(rosterRecords));
+                localStorage.setItem('taxi_local_notes_v196', JSON.stringify(notesRecords));
+                localStorage.setItem('taxi_local_drivers_v196', JSON.stringify(driversDb));
 
                 if (db && rosterDocRef && driversDocRef) {
                     await Promise.all([
                         setDoc(rosterDocRef, { records: rosterRecords, notes: notesRecords, updatedAt: Date.now() }),
                         setDoc(driversDocRef, { drivers: driversDb, updatedAt: Date.now() })
                     ]);
+                    showToast('🎉 成功儲存並同步上傳至雲端！所有同事重新整理即可看到最新資料。', 'success');
+                } else {
+                    showToast('已儲存至本地 (雲端未初始化)', 'warning');
                 }
             } catch (err) {
                 console.error("Cloud sync error:", err);
+                showToast('上傳雲端失敗，請檢查網絡後重試', 'error');
             }
-        }
-
-        window.reconnectFirebase = function() {
-            showToast('正在重新連線...', 'info');
-            initFirebase();
         };
 
         window.switchMainTab = function(tab) {
@@ -721,7 +699,7 @@
                             return rec;
                         });
                     }
-                    showToast(`已更新「${name}」並同步至雲端！`, 'success');
+                    showToast(`已更新「${name}」！記得點擊右上角儲存按鈕同步。`, 'success');
                 }
                 window.cancelDbEdit();
             } else {
@@ -729,12 +707,11 @@
                     id: 'drv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                     name, phone, driverType, createdAt: Date.now()
                 });
-                showToast(`已新增「${name}」至雲端資料庫！`, 'success');
+                showToast(`已新增「${name}」！記得點擊右上角儲存按鈕同步。`, 'success');
                 document.getElementById('dbDriverName').value = '';
                 document.getElementById('dbDriverPhone').value = '';
             }
 
-            syncToCloud();
             renderDriversDB();
             updateDriverSuggestions();
         };
@@ -771,10 +748,9 @@
             if (!drv) return;
             showConfirmDialog(`確定刪除司機「${drv.name}」？`, () => {
                 driversDb = driversDb.filter(d => d.id !== id);
-                syncToCloud();
                 renderDriversDB();
                 updateDriverSuggestions();
-                showToast('已從雲端刪除', 'success');
+                showToast('已刪除，請記得點擊右上角儲存同步', 'success');
             });
         };
 
@@ -797,10 +773,9 @@
             });
 
             if (addedCount > 0) {
-                syncToCloud();
                 renderDriversDB();
                 updateDriverSuggestions();
-                showToast(`成功從排班表匯入 ${addedCount} 位新司機至雲端！`, 'success');
+                showToast(`成功從排班表匯入 ${addedCount} 位新司機！記得點擊右上角儲存同步。`, 'success');
             } else {
                 showToast('沒有發現新司機可匯入', 'info');
             }
@@ -913,7 +888,7 @@
                 const idx = rosterRecords.findIndex(r => r.id === editingId);
                 if (idx !== -1) {
                     rosterRecords[idx] = { ...rosterRecords[idx], name, phone, driverType, shift, days };
-                    showToast('已修改排班紀錄並同步至雲端！', 'success');
+                    showToast('已修改排班！記得點擊右上角儲存同步。', 'success');
                 }
                 window.cancelEditMode();
             } else {
@@ -924,10 +899,9 @@
                 document.getElementById('driverName').value = '';
                 document.getElementById('driverPhone').value = '';
                 window.selectAllDays(false);
-                showToast('已新增排班紀錄至雲端！', 'success');
+                showToast('已新增排班！記得點擊右上角儲存同步。', 'success');
             }
 
-            syncToCloud();
             renderTable();
         };
 
@@ -962,9 +936,8 @@
         window.deleteRecord = function(id) {
             showConfirmDialog('確定刪除此排班紀錄？', () => {
                 rosterRecords = rosterRecords.filter(r => r.id !== id);
-                syncToCloud();
                 renderTable();
-                showToast('已從雲端刪除', 'success');
+                showToast('已刪除，請記得點擊右上角儲存同步', 'success');
             });
         };
 
@@ -1092,7 +1065,7 @@
                 const idx = notesRecords.findIndex(n => n.id === editingId);
                 if (idx !== -1) {
                     notesRecords[idx] = { ...notesRecords[idx], driverName, startDate, endDate, content };
-                    showToast('已更新備註並同步至雲端！', 'success');
+                    showToast('已更新備註！記得點擊右上角儲存同步。', 'success');
                 }
                 window.cancelNoteEdit();
             } else {
@@ -1104,10 +1077,9 @@
                 document.getElementById('noteStartDate').value = '';
                 document.getElementById('noteEndDate').value = '';
                 document.getElementById('noteContent').value = '';
-                showToast('已新增備註至雲端！', 'success');
+                showToast('已新增備註！記得點擊右上角儲存同步。', 'success');
             }
 
-            syncToCloud();
             renderNotes();
         };
 
@@ -1136,9 +1108,8 @@
         window.deleteNote = function(id) {
             showConfirmDialog('確定刪除此備註？', () => {
                 notesRecords = notesRecords.filter(n => n.id !== id);
-                syncToCloud();
                 renderNotes();
-                showToast('已從雲端刪除', 'success');
+                showToast('已刪除，請記得點擊右上角儲存同步', 'success');
             });
         };
 
@@ -1173,7 +1144,7 @@
             }).join('');
         };
 
-        initFirebase();
+        initFirebaseAndLoad();
     </script>
 </body>
 </html>
