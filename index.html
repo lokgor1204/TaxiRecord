@@ -207,7 +207,7 @@
                     currentNotes.push({
                         id: docSnap.id,
                         driver: data.driver || '',
-                        phone: data.phone || '', // 新增電話號碼
+                        phone: data.phone || '',
                         startDate: data.startDate || '',
                         endDate: data.endDate || '',
                         text: data.text || '',
@@ -306,7 +306,6 @@
                     ? `${n.startDate} 至 ${n.endDate}`
                     : (n.startDate || n.endDate || '未設定日期');
 
-                // 處理電話同 WhatsApp
                 const cleanPhone = n.phone ? n.phone.replace(/[^0-9]/g, '') : '';
                 let waLink = '';
                 if (cleanPhone) {
@@ -814,6 +813,7 @@
         .form-card h2 { font-size: clamp(0.9rem, 3.2vw, 1rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
         .form-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px; }
         @media (min-width: 480px) { .form-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+        
         .input-group { display: flex; flex-direction: column; gap: 5px; }
         .input-group label { font-size: clamp(0.75rem, 2.6vw, 0.82rem); font-weight: 600; color: #374151; margin-left: 2px; }
         .input-group input, .input-group textarea { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; }
@@ -830,7 +830,9 @@
         .shift-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
         .shift-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
 
-        .form-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+        /* 紀錄表單底部按鈕 (靠左排埋) */
+        .record-form-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
+
         .btn { border: none; padding: 11px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; cursor: pointer; transition: 0.12s; background: white; color: #374151; border: 1px solid #d1d5db; touch-action: manipulation; }
         .btn-primary { background: #1f2937; color: white; border: none; }
         .btn-primary:hover { background: #111827; }
@@ -907,7 +909,7 @@
             flex: 1;
         }
 
-        /* 為咗令兩格並排唔會爆版，將備註格入面嘅 input 縮細少少 */
+        /* 🛠️ 修正：只有備註表單入面嘅 input 先縮細，唔會影響「新增紀錄」 */
         .note-form-card .input-group input {
             padding: 9px 8px;
             font-size: 0.85rem;
@@ -919,8 +921,8 @@
         
         /* 第一行：左邊時間 (大字)，右邊備註事情 */
         .note-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-        .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; } /* 字體加大 */
-        .note-text { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #b45309; text-align: right; word-break: break-word; } /* 加大並用深橙色突出 */
+        .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
+        .note-text { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #b45309; text-align: right; word-break: break-word; }
 
         /* 第二行：左邊司機名，右邊電話 + WhatsApp */
         .note-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -984,14 +986,11 @@
                             <div id="shiftButtons" class="shift-selector"></div>
                         </div>
                     </div>
-                    <div class="form-actions">
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
-                            <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">取消修改</button>
-                        </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button type="button" id="deleteAllBtn" class="btn btn-danger">刪除全部</button>
-                        </div>
+                    <!-- 改咗做 flex-start，撳掣會靠左排埋 -->
+                    <div class="record-form-actions">
+                        <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
+                        <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">取消修改</button>
+                        <button type="button" id="deleteAllBtn" class="btn btn-danger" style="margin-left: 8px;">刪除全部</button>
                     </div>
                 </form>
             </div>
