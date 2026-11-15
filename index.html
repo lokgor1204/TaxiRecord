@@ -45,7 +45,7 @@
         const cloudSaveBtn = document.getElementById('cloudSaveBtn');
         const saveStatusMsg = document.getElementById('saveStatusMsg');
 
-        const APP_VERSION = 'V1.2'; // 版本更新
+        const APP_VERSION = 'V1.3'; // 版本更新
         versionEl.textContent = APP_VERSION;
 
         // 全局數據
@@ -93,6 +93,7 @@
         const driverTitle = document.getElementById('driverTitle');
         const addDriverBtn = document.getElementById('addDriverBtn');
         const driverCancelBtn = document.getElementById('driverCancelBtn');
+        let dSelectedShift = null; // 司機資料專用早/夜更
 
         const WEEKDAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
         const WEEKDAY_LABEL = { 'mon': '一', 'tue': '二', 'wed': '三', 'thu': '四', 'fri': '五', 'sat': '六', 'sun': '日' };
@@ -151,7 +152,6 @@
         // Autocomplete 自動填入功能
         // ==========================================
         function setupAutocomplete(inputEl, phoneEl) {
-            // 建立下拉選單容器
             const dropdown = document.createElement('div');
             dropdown.className = 'autocomplete-dropdown';
             dropdown.style.display = 'none';
@@ -160,18 +160,11 @@
 
             inputEl.addEventListener('input', () => {
                 const val = inputEl.value.trim().toLowerCase();
-                if (!val) {
-                    dropdown.style.display = 'none';
-                    return;
-                }
+                if (!val) { dropdown.style.display = 'none'; return; }
                 
-                // 從現有司機資料庫過濾
                 const matches = currentDrivers.filter(d => d.name.toLowerCase().includes(val));
                 
-                if (matches.length === 0) {
-                    dropdown.style.display = 'none';
-                    return;
-                }
+                if (matches.length === 0) { dropdown.style.display = 'none'; return; }
 
                 dropdown.innerHTML = matches.map(d => `
                     <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}">
@@ -181,7 +174,6 @@
                 `).join('');
                 dropdown.style.display = 'block';
 
-                // 點擊選項自動填入
                 dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
                     item.addEventListener('click', () => {
                         inputEl.value = item.getAttribute('data-name');
@@ -191,7 +183,6 @@
                 });
             });
 
-            // 點擊外部關閉
             document.addEventListener('click', (e) => {
                 if (e.target !== inputEl && !dropdown.contains(e.target)) {
                     dropdown.style.display = 'none';
@@ -336,11 +327,14 @@
             }
             list.innerHTML = currentDrivers.map(d => {
                 const typeLabel = d.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
+                const shiftLabel = d.shift ? `<span class="record-shift ${d.shift}">${SHIFT_LABEL[d.shift]}</span>` : '';
+                
                 return `
                     <div class="driver-item ${d._pending ? 'pending' : ''}">
-                        <div class="driver-info">
+                        <div class="row-left">
                             <span class="record-name">${escapeHtml(d.name)}</span>
                             ${typeLabel}
+                            ${shiftLabel}
                         </div>
                         <div class="driver-phone">${escapeHtml(d.phone)}</div>
                         <div class="record-actions">
@@ -364,7 +358,6 @@
         // ==========================================
         // 3. 隊列操作 (本機暫存)
         // ==========================================
-        // 司機紀錄
         window.queueDelete = (id) => {
             if (!confirm('確定刪除？(需撳儲存)')) return;
             const pAdd = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === id);
@@ -399,7 +392,6 @@
             formTitle.textContent = '新增司機紀錄'; saveBtn.textContent = '加入新增'; cancelEditBtn.style.display = 'none';
         }
 
-        // 備註
         window.queueDeleteNote = (id) => {
             if (!confirm('確定刪除？(需撳儲存)')) return;
             const pAdd = pendingNoteChanges.findIndex(c => c.type === 'add' && c.tempId === id);
@@ -427,7 +419,6 @@
             noteTitle.textContent = '新增備註'; addNoteBtn.textContent = '加入備註'; noteCancelBtn.style.display = 'none';
         }
 
-        // 司機資料
         window.queueDeleteDriver = (id) => {
             if (!confirm('確定刪除？(需撳儲存)')) return;
             const pAdd = pendingDriverChanges.findIndex(c => c.type === 'add' && c.tempId === id);
@@ -445,6 +436,8 @@
             editingDriverId = id;
             dName.value = d.name; dPhone.value = d.phone;
             document.querySelectorAll('.d-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === d.type));
+            dSelectedShift = d.shift || null;
+            document.querySelectorAll('.d-shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === dSelectedShift));
             driverTitle.textContent = '修改司機資料'; addDriverBtn.textContent = '加入修改'; driverCancelBtn.style.display = 'inline-block';
             driverForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
@@ -452,7 +445,8 @@
         function exitDriverEditMode() {
             editingDriverId = null;
             driverForm.reset();
-            document.querySelectorAll('.d-type-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.d-type-btn, .d-shift-btn').forEach(b => b.classList.remove('active'));
+            dSelectedShift = null;
             driverTitle.textContent = '新增司機資料'; addDriverBtn.textContent = '加入資料'; driverCancelBtn.style.display = 'none';
         }
 
@@ -487,6 +481,13 @@
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'd-type-btn'; b.dataset.type = t; b.textContent = t;
                 b.onclick = () => { document.querySelectorAll('.d-type-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
                 dtContainer.appendChild(b);
+            });
+
+            const dsContainer = document.getElementById('dShiftButtons');
+            ['morning', 'night'].forEach(s => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'd-shift-btn shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_LABEL[s];
+                b.onclick = () => { dSelectedShift = s; document.querySelectorAll('.d-shift-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
+                dsContainer.appendChild(b);
             });
 
             // 綁定 Autocomplete
@@ -538,8 +539,8 @@
             driverForm.onsubmit = (e) => {
                 e.preventDefault();
                 const typeBtn = document.querySelector('.d-type-btn.active');
-                if (!dName.value.trim() || !dPhone.value.trim() || !typeBtn) { alert('請填寫姓名、電話並選擇正/替更'); return; }
-                const data = { name: dName.value.trim(), phone: dPhone.value.trim(), type: typeBtn.dataset.type };
+                if (!dName.value.trim() || !dPhone.value.trim() || !typeBtn || !dSelectedShift) { alert('請填寫姓名、電話並選擇正/替更及早/夜更'); return; }
+                const data = { name: dName.value.trim(), phone: dPhone.value.trim(), type: typeBtn.dataset.type, shift: dSelectedShift };
                 if (editingDriverId) {
                     const idx = currentDrivers.findIndex(d => d.id === editingDriverId);
                     const pAdd = pendingDriverChanges.find(c => c.type === 'add' && c.tempId === editingDriverId);
@@ -572,7 +573,6 @@
                 cloudSaveBtn.disabled = true; cloudSaveBtn.textContent = '儲存中…';
                 let sCount = 0, fCount = 0, fMsg = '';
 
-                // 逐個處理隊列
                 for (const change of pendingDriverChanges) {
                     try {
                         if (change.type === 'add') await addDoc(driversCollection, { ...change.data, createdAt: new Date() });
@@ -651,7 +651,7 @@
         .tab-btn.active { background: white; color: #111827; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
 
         .form-card { background: #f9fafb; border-radius: 10px; padding: clamp(14px, 3.5vw, 20px) clamp(12px, 3vw, 16px); margin-bottom: clamp(20px, 5vw, 28px); border: 1px solid #e5e7eb; }
-        .form-card h2 { font-size: clamp(0.9rem, 3.2vw, 1rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
+        .form-card h2, .form-card h3 { font-size: clamp(0.9rem, 3.2vw, 1rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
         
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
         
@@ -671,9 +671,9 @@
         .weekday-btn { padding: 10px 2px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.8rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
         .weekday-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
 
-        .shift-selector, .type-selector, .d-type-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 2px; }
-        .shift-btn, .type-btn, .d-type-btn { padding: 10px 8px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.82rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
-        .shift-btn.active, .type-btn.active, .d-type-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
+        .shift-selector, .type-selector, .d-type-selector, .d-shift-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 2px; }
+        .shift-btn, .type-btn, .d-type-btn, .d-shift-btn { padding: 10px 8px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.82rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
+        .shift-btn.active, .type-btn.active, .d-type-btn.active, .d-shift-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
 
         .record-form-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
 
@@ -682,8 +682,6 @@
         .btn-primary:hover { background: #111827; }
         .btn-outline { background: transparent; }
         .btn-outline:hover { background: #f3f4f6; }
-        .btn-danger { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; }
-        .btn-danger:hover { background: #fef2f2; }
 
         .records-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
         .records-header h2 { font-size: clamp(0.95rem, 3.5vw, 1.1rem); font-weight: 600; color: #111827; }
@@ -749,7 +747,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V1.2</span>
+                <span class="version" id="version">V1.3</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -870,9 +868,13 @@
                             <label>電話號碼</label>
                             <input type="tel" id="dPhone" placeholder="91234567" required>
                         </div>
-                        <div class="input-group" style="grid-column: 1 / -1;">
-                            <label>類型</label>
+                        <div class="input-group">
+                            <label>類型 (正更 / 替更)</label>
                             <div id="dTypeButtons" class="d-type-selector"></div>
+                        </div>
+                        <div class="input-group">
+                            <label>更別 (早更 / 夜更)</label>
+                            <div id="dShiftButtons" class="d-shift-selector"></div>
                         </div>
                     </div>
                     <div class="record-form-actions">
