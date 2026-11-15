@@ -43,12 +43,15 @@
         const cloudSaveBtn = document.getElementById('cloudSaveBtn');
         const saveStatusMsg = document.getElementById('saveStatusMsg');
 
-        const APP_VERSION = 'V1.4'; 
+        const searchDriverInput = document.getElementById('searchDriver');
+
+        const APP_VERSION = 'V1.6'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
         let currentNotes = [];
         let currentDrivers = [];
+        let driverSearchQuery = ''; 
 
         let pendingChanges = [];
         let pendingNoteChanges = [];
@@ -58,7 +61,6 @@
         let editingNoteId = null;
         let editingDriverId = null;
 
-        // 司機紀錄表單
         const form = document.getElementById('recordForm');
         const nameInput = document.getElementById('name');
         const phoneInput = document.getElementById('phone');
@@ -70,7 +72,6 @@
         let selectedShift = null;
         let selectedType = null; 
 
-        // 備註表單
         const noteForm = document.getElementById('noteForm');
         const noteStart = document.getElementById('noteStart');
         const noteEnd = document.getElementById('noteEnd');
@@ -81,7 +82,6 @@
         const addNoteBtn = document.getElementById('addNoteBtn');
         const noteCancelBtn = document.getElementById('noteCancelBtn');
 
-        // 司機資料表單
         const driverForm = document.getElementById('driverForm');
         const dName = document.getElementById('dName');
         const dPhone = document.getElementById('dPhone');
@@ -93,7 +93,6 @@
         const WEEKDAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
         const WEEKDAY_LABEL = { 'mon': '一', 'tue': '二', 'wed': '三', 'thu': '四', 'fri': '五', 'sat': '六', 'sun': '日' };
         const SHIFT_LABEL = { 'morning': '早更', 'night': '夜更' };
-        const NOTE_EXPIRE_DAYS = 6;
 
         const WA_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
 
@@ -140,6 +139,9 @@
             } else {
                 tabDrivers.classList.add('active');
                 panelDrivers.style.display = 'block';
+                searchDriverInput.value = ''; 
+                driverSearchQuery = '';
+                renderDrivers();
             }
         }
 
@@ -192,7 +194,7 @@
                     currentRecords.push({ 
                         id: docSnap.id, ...d, 
                         weekdays: Array.isArray(d.weekdays) ? d.weekdays : (d.weekday ? [d.weekday] : []),
-                        isStarred: d.isStarred || false // 確保有預設值
+                        isStarred: d.isStarred || false 
                     });
                 });
                 renderRecords();
@@ -225,8 +227,19 @@
             });
         }
 
+        async function cleanupExpiredNotes(notes) {
+            const expired = notes.filter(n => {
+                if (!n.endDate) return false;
+                const end = new Date(n.endDate + 'T23:59:59');
+                return new Date() > new Date(end.getTime() + 6 * 86400000);
+            });
+            for (const n of expired) {
+                try { await deleteDoc(doc(db, "shiftNotes", n.id)); } catch (e) { console.error(e); }
+            }
+        }
+
         // ==========================================
-        // 排序與渲染：星號優先 -> 正更先 -> 名字 A-Z
+        // 渲染數據
         // ==========================================
         function renderRecords() {
             const list = document.getElementById('recordsList');
@@ -235,20 +248,12 @@
                 return;
             }
 
-            // 自訂排序邏輯
             const sortedRecords = [...currentRecords].sort((a, b) => {
-                // 1. 星號優先 (true 排前)
                 if (a.isStarred && !b.isStarred) return -1;
                 if (!a.isStarred && b.isStarred) return 1;
-                
-                // 2. 類型：正更排前，替更排後
                 if (a.type === '正更' && b.type !== '正更') return -1;
                 if (a.type !== '正更' && b.type === '正更') return 1;
-                
-                // 3. 名字 A-Z
-                const nameA = (a.name || '').toLowerCase();
-                const nameB = (b.name || '').toLowerCase();
-                return nameA.localeCompare(nameB, 'zh-HK');
+                return (a.name || '').localeCompare((b.name || ''), 'zh-HK');
             });
 
             list.innerHTML = sortedRecords.map(rec => {
@@ -264,10 +269,9 @@
                     wa = `<a class="wa-btn" href="https://wa.me/${n}" target="_blank">${WA_ICON}</a>`;
                 }
 
-                // 星星按鈕 (空心 / 實心)
                 const starBtn = rec.isStarred 
-                    ? `<button class="star-btn starred" onclick="toggleStar('${rec.id}')" title="取消置頂">★</button>` 
-                    : `<button class="star-btn" onclick="toggleStar('${rec.id}')" title="置頂">☆</button>`;
+                    ? `<button class="star-btn starred" onclick="toggleStar('${rec.id}')">★</button>` 
+                    : `<button class="star-btn" onclick="toggleStar('${rec.id}')">☆</button>`;
 
                 return `
                     <div class="record-item ${rec._pending ? 'pending' : ''}" data-id="${rec.id}">
@@ -323,11 +327,12 @@
                                 ${wa}
                             </div>
                         </div>
-                        <div class="note-row-actions">
+                        <!-- 把自動刪除提示移去左邊，掣放右邊，並排整齊 -->
+                        <div class="note-row-footer">
                             <span class="note-expire">自動刪除：${getExpireHint(n.endDate)}</span>
-                            <div class="note-actions">
-                                <button class="note-edit-btn" onclick="enterNoteEditMode('${n.id}')">修改</button>
-                                <button class="note-delete-btn" onclick="queueDeleteNote('${n.id}')">刪除</button>
+                            <div class="record-actions">
+                                <button class="edit-btn" onclick="enterNoteEditMode('${n.id}')">修改</button>
+                                <button class="delete-btn" onclick="queueDeleteNote('${n.id}')">刪除</button>
                             </div>
                         </div>
                     </div>
@@ -337,22 +342,51 @@
 
         function renderDrivers() {
             const list = document.getElementById('driversList');
-            if (currentDrivers.length === 0) {
-                list.innerHTML = `<div class="empty-message">暫時未有司機資料。</div>`;
+            
+            let filtered = currentDrivers;
+            if (driverSearchQuery) {
+                const q = driverSearchQuery.toLowerCase();
+                filtered = currentDrivers.filter(d => 
+                    (d.name || '').toLowerCase().includes(q) || 
+                    (d.phone || '').includes(q)
+                );
+            }
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="empty-message">${driverSearchQuery ? '搵唔到符合嘅司機' : '暫時未有司機資料'}</div>`;
                 return;
             }
-            list.innerHTML = currentDrivers.map(d => {
+
+            filtered.sort((a, b) => {
+                const pA = a.phone ? a.phone.replace(/[^0-9]/g, '') : '';
+                const pB = b.phone ? b.phone.replace(/[^0-9]/g, '') : '';
+                if (!pA && pB) return 1;
+                if (pA && !pB) return -1;
+                return pA.localeCompare(pB);
+            });
+
+            list.innerHTML = filtered.map(d => {
                 const typeLabel = d.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
                 const shiftLabel = d.shift ? `<span class="record-shift ${d.shift}">${SHIFT_LABEL[d.shift]}</span>` : '';
                 
+                let wa = '';
+                if (d.phone) {
+                    const c = d.phone.replace(/[^0-9]/g, '');
+                    const n = c.length === 8 ? '852' + c : c;
+                    wa = `<a class="wa-btn" href="https://wa.me/${n}" target="_blank">${WA_ICON}</a>`;
+                }
+                
                 return `
                     <div class="driver-item ${d._pending ? 'pending' : ''}">
-                        <div class="row-left">
+                        <div class="row-left driver-left">
                             <span class="record-name">${escapeHtml(d.name)}</span>
                             ${typeLabel}
                             ${shiftLabel}
                         </div>
-                        <div class="driver-phone">${escapeHtml(d.phone)}</div>
+                        <div class="driver-right">
+                            <span class="driver-phone">${escapeHtml(d.phone)}</span>
+                            ${wa}
+                        </div>
                         <div class="record-actions">
                             <button class="edit-btn" onclick="enterDriverEditMode('${d.id}')">修改</button>
                             <button class="delete-btn" onclick="queueDeleteDriver('${d.id}')">刪除</button>
@@ -374,24 +408,17 @@
         // ==========================================
         // 隊列操作
         // ==========================================
-        // 切換星號
         window.toggleStar = (id) => {
             const idx = currentRecords.findIndex(r => r.id === id);
             if (idx === -1) return;
-            
             const newStarred = !currentRecords[idx].isStarred;
-            
-            // 如果係未同步嘅新增，直接改本機
             const pAdd = pendingChanges.find(c => c.type === 'add' && c.tempId === id);
             if (pAdd) {
                 pAdd.data.isStarred = newStarred;
             } else {
-                // 加入或更新隊列
                 pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === id));
-                // 我哋用一個局部 update 只改 isStarred
                 pendingChanges.push({ type: 'update', id, data: { isStarred: newStarred }, partial: true });
             }
-            
             currentRecords[idx].isStarred = newStarred;
             currentRecords[idx]._pending = true;
             renderRecords();
@@ -490,6 +517,9 @@
             driverTitle.textContent = '新增司機資料'; addDriverBtn.textContent = '加入資料'; driverCancelBtn.style.display = 'none';
         }
 
+        // ==========================================
+        // 初始化
+        // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
             const wContainer = document.getElementById('weekdayButtons');
             WEEKDAY_ORDER.forEach(d => {
@@ -532,6 +562,11 @@
             listenToRecords();
             listenToNotes();
             listenToDrivers();
+
+            searchDriverInput.addEventListener('input', (e) => {
+                driverSearchQuery = e.target.value.trim();
+                renderDrivers();
+            });
 
             form.onsubmit = (e) => {
                 e.preventDefault();
@@ -714,6 +749,8 @@
 
         .records-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
         .records-header h2 { font-size: clamp(0.95rem, 3.5vw, 1.1rem); font-weight: 600; color: #111827; }
+        .search-input { padding: 6px 12px; border-radius: 20px; border: 1px solid #d1d5db; font-size: 0.85rem; outline: none; width: 150px; }
+        .search-input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
 
         .records-list, .driver-list { display: flex; flex-direction: column; gap: 7px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
 
@@ -723,9 +760,13 @@
 
         .record-row-top, .note-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
         .row-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+        
+        .driver-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 120px; }
+        .driver-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
         .record-name { font-weight: 600; font-size: clamp(0.92rem, 3.4vw, 1rem); color: #111827; }
         .record-contact { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-        .record-phone { color: #4b5563; font-size: clamp(0.8rem, 2.9vw, 0.88rem); white-space: nowrap; }
+        .record-phone, .driver-phone { color: #4b5563; font-size: clamp(0.8rem, 2.9vw, 0.88rem); white-space: nowrap; }
 
         .record-shift { font-weight: 500; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
         .record-shift.morning { background: #fef3c7; color: #92400e; }
@@ -746,7 +787,6 @@
         .day-tag { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 5px; background: #eef2ff; color: #3730a3; font-size: 0.75rem; font-weight: 600; line-height: 1; }
         .day-tag.empty { background: #f3f4f6; color: #9ca3af; font-weight: 400; padding: 0 8px; }
 
-        /* 星星按鈕 */
         .star-btn { background: transparent; border: none; font-size: 1.4rem; cursor: pointer; padding: 0; line-height: 1; color: #d1d5db; transition: transform 0.1s, color 0.1s; margin-right: 4px; display: flex; align-items: center; }
         .star-btn:hover { transform: scale(1.1); }
         .star-btn.starred { color: #fbbf24; }
@@ -769,11 +809,19 @@
         .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
         .note-text { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #b45309; text-align: right; word-break: break-word; }
         .note-driver { font-weight: 500; font-size: clamp(0.8rem, 2.9vw, 0.88rem); color: #4b5563; }
-        .note-row-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 2px; padding-top: 6px; border-top: 1px dashed #f3f4f6;}
-        .note-expire { font-size: clamp(0.65rem, 2.3vw, 0.72rem); color: #9ca3af; }
-        .note-actions { display: flex; gap: 5px; flex-shrink: 0; }
+        
+        /* 🛠️ 修改：將提示同掣放返喺同一行，左右分開 */
+        .note-row-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+        .note-expire { font-size: clamp(0.65rem, 2.3vw, 0.72rem); color: #9ca3af; flex: 1; }
 
         footer { margin-top: 18px; font-size: 0.72rem; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 14px; }
+
+        @media (max-width: 500px) {
+            .driver-item { flex-direction: column; align-items: stretch; gap: 8px; }
+            .driver-left, .driver-right { width: 100%; justify-content: flex-start; }
+            .driver-right { justify-content: flex-end; }
+            .driver-item .record-actions { margin-left: auto; }
+        }
     </style>
 </head>
 <body>
@@ -781,7 +829,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V1.4</span>
+                <span class="version" id="version">V1.6</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -920,6 +968,7 @@
 
             <div class="records-header">
                 <h2>司機資料庫</h2>
+                <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名或電話...">
             </div>
             <div id="driversList" class="driver-list">
                 <div class="empty-message">載入中...</div>
