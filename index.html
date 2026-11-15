@@ -45,7 +45,7 @@
 
         const searchDriverInput = document.getElementById('searchDriver');
 
-        const APP_VERSION = 'V1.6'; 
+        const APP_VERSION = 'V1.7'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -239,7 +239,7 @@
         }
 
         // ==========================================
-        // 渲染數據
+        // 渲染數據 (加入淺藍色標籤)
         // ==========================================
         function renderRecords() {
             const list = document.getElementById('recordsList');
@@ -278,7 +278,7 @@
                         <div class="record-row-top">
                             <div class="row-left">
                                 ${starBtn}
-                                <span class="record-name">${escapeHtml(rec.name)}</span>
+                                <span class="driver-name-tag">${escapeHtml(rec.name)}</span>
                                 ${typeLabel}
                                 <span class="record-shift ${rec.shift}">${shift}</span>
                                 ${plate}
@@ -321,13 +321,12 @@
                             <span class="note-text">${escapeHtml(n.text)}</span>
                         </div>
                         <div class="note-row-bottom">
-                            <span class="note-driver">${escapeHtml(n.driver)}</span>
+                            <span class="driver-name-tag">${escapeHtml(n.driver)}</span>
                             <div class="record-contact">
                                 <span class="record-phone">${n.phone ? escapeHtml(n.phone) : ''}</span>
                                 ${wa}
                             </div>
                         </div>
-                        <!-- 把自動刪除提示移去左邊，掣放右邊，並排整齊 -->
                         <div class="note-row-footer">
                             <span class="note-expire">自動刪除：${getExpireHint(n.endDate)}</span>
                             <div class="record-actions">
@@ -379,7 +378,7 @@
                 return `
                     <div class="driver-item ${d._pending ? 'pending' : ''}">
                         <div class="row-left driver-left">
-                            <span class="record-name">${escapeHtml(d.name)}</span>
+                            <span class="driver-name-tag">${escapeHtml(d.name)}</span>
                             ${typeLabel}
                             ${shiftLabel}
                         </div>
@@ -764,8 +763,17 @@
         .driver-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 120px; }
         .driver-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-        .record-name { font-weight: 600; font-size: clamp(0.92rem, 3.4vw, 1rem); color: #111827; }
-        .record-contact { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        /* 🛠️ 新增：淺藍色底嘅司機名標籤 */
+        .driver-name-tag { 
+            font-weight: 600; 
+            font-size: clamp(0.95rem, 3.6vw, 1.05rem); 
+            color: #1e3a8a; 
+            background: #dbeafe; 
+            padding: 3px 10px; 
+            border-radius: 6px; 
+            display: inline-block;
+        }
+
         .record-phone, .driver-phone { color: #4b5563; font-size: clamp(0.8rem, 2.9vw, 0.88rem); white-space: nowrap; }
 
         .record-shift { font-weight: 500; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
@@ -808,9 +816,7 @@
         /* ===== 備註列表 ===== */
         .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
         .note-text { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #b45309; text-align: right; word-break: break-word; }
-        .note-driver { font-weight: 500; font-size: clamp(0.8rem, 2.9vw, 0.88rem); color: #4b5563; }
         
-        /* 🛠️ 修改：將提示同掣放返喺同一行，左右分開 */
         .note-row-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
         .note-expire { font-size: clamp(0.65rem, 2.3vw, 0.72rem); color: #9ca3af; flex: 1; }
 
@@ -829,7 +835,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V1.6</span>
+                <span class="version" id="version">V1.7</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
