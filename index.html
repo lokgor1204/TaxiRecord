@@ -45,7 +45,7 @@
 
         const searchDriverInput = document.getElementById('searchDriver');
 
-        const APP_VERSION = 'V1.8'; 
+        const APP_VERSION = 'V1.9'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -224,6 +224,8 @@
                     currentDrivers.push({ id: docSnap.id, ...docSnap.data() });
                 });
                 renderDrivers();
+                // 當司機資料更新時，重新渲染備註（確保標籤實時更新）
+                renderNotes(); 
             });
         }
 
@@ -315,16 +317,18 @@
                     wa = `<a class="wa-btn" href="https://wa.me/${num}" target="_blank">${WA_ICON}</a>`;
                 }
 
-                // 🛠️ 自動判斷並顯示正更/替更標籤
-                let typeLabel = '';
+                // 🛠️ 實時對比「司機資料庫」，確保一定顯示到標籤
+                let displayType = n.type || '';
                 const matchedDriver = currentDrivers.find(d => d.name === n.driver);
                 if (matchedDriver && matchedDriver.type) {
-                    typeLabel = matchedDriver.type === '正更' 
-                        ? '<span class="type-tag regular">正更</span>' 
-                        : '<span class="type-tag substitute">替更</span>';
-                } else if (n.type) {
-                    // 如果雲端有儲存舊資料嘅 type 就用返
-                    typeLabel = n.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
+                    displayType = matchedDriver.type;
+                }
+
+                let typeLabel = '';
+                if (displayType === '正更') {
+                    typeLabel = '<span class="type-tag regular">正更</span>';
+                } else if (displayType === '替更') {
+                    typeLabel = '<span class="type-tag substitute">替更</span>';
                 }
 
                 return `
@@ -860,7 +864,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V1.8</span>
+                <span class="version" id="version">V1.9</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
