@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>的士編更系統 v3.2.0 (Firestore 原生直連版)</title>
+<title>的士編更系統 v3.2.1 (Firestore 診斷版)</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,10 +16,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
 <body class="min-h-screen flex flex-col text-slate-800">
 ​<!-- 頂部導航與狀態欄 -->
 <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
-<div id="cloudStatusBar" class="bg-amber-600 text-white px-4 py-1 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all">
+<div id="cloudStatusBar" class="bg-amber-600 text-white px-4 py-1.5 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all">
 <i class="fa-solid fa-spinner fa-spin"></i>
 <span id="cloudStatusText">正在連接 Firestore 雲端資料庫...</span>
-<button onclick="checkCloudConnection()" class="underline ml-2 text-[11px] hover:text-slate-200">手動重試</button>
+<button onclick="checkCloudConnection()" class="underline ml-2 text-[11px] hover:text-slate-200 bg-black/20 px-2 py-0.5 rounded">手動重試連線</button>
 </div>
 ​<div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
 <div class="flex items-center gap-3 min-w-0">
@@ -29,11 +29,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Robo
 <div class="min-w-0">
 <div class="flex items-center gap-2">
 <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更系統</h1>
-<span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v3.2.0</span>
+<span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v3.2.1</span>
 </div>
 <div id="connectionSubText" class="flex items-center gap-1.5 text-[11px] text-amber-300 font-medium mt-0.5">
 <span id="connectionDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-<span id="connectionLabel">準備連線中...</span>
+<span id="connectionLabel">檢測雲端狀態中...</span>
 </div>
 </div>
 </div>
@@ -274,10 +274,10 @@ class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-
 <footer class="bg-white border-t border-slate-200 py-4 mt-8">
 <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
 <p>的士編更系統 • Firestore 雲端即時同步（taxirecord123）。</p>
-<p class="font-mono text-slate-400 font-medium">Version 3.2.0</p>
+<p class="font-mono text-slate-400 font-medium">Version 3.2.1</p>
 </div>
 </footer>
-​<!-- Firebase Firestore 核心模組 -->
+​<!-- Firebase Firestore 診斷核心模組 -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -294,10 +294,10 @@ measurementId: "G-2BVTVP5W7N"
 ​try {
 const app = initializeApp(firebaseConfig);
 db = getFirestore(app);
-console.log("Firestore 初始化成功！");
+console.log("【Firebase 診斷】initializeApp 成功");
 } catch (err) {
-console.error("【Firestore 初始化失敗】:", err);
-updateCloudStatus('error', err.message);
+console.error("【Firebase 診斷初始化錯誤】", err);
+updateCloudStatus('error', "初始化失敗: " + err.code);
 }
 ​function updateCloudStatus(status, message) {
 const bar = document.getElementById('cloudStatusBar');
@@ -306,32 +306,30 @@ const subText = document.getElementById('connectionSubText');
 const dot = document.getElementById('connectionDot');
 const label = document.getElementById('connectionLabel');
 ​if (status === 'connected') {
-bar.className = "bg-emerald-600 text-white px-4 py-1 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all";
+bar.className = "bg-emerald-600 text-white px-4 py-1.5 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all";
 statusText.innerHTML = <i class="fa-solid fa-cloud-circle-check"></i> Firestore 雲端已連線;
 subText.className = "flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium mt-0.5";
 dot.className = "w-2 h-2 rounded-full bg-emerald-400";
 label.textContent = "雲端同步運作中";
 } else if (status === 'error') {
-bar.className = "bg-rose-600 text-white px-4 py-1 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all";
-statusText.innerHTML = <i class="fa-solid fa-triangle-exclamation"></i> 雲端錯誤: ${escapeHTML(message)};
+bar.className = "bg-rose-600 text-white px-4 py-1.5 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all";
+statusText.innerHTML = <i class="fa-solid fa-triangle-exclamation"></i> 雲端連線失敗: <b>${escapeHTML(message)}</b>;
 subText.className = "flex items-center gap-1.5 text-[11px] text-rose-300 font-medium mt-0.5";
 dot.className = "w-2 h-2 rounded-full bg-rose-400";
-label.textContent = "連線異常 (請看 Console)";
+label.textContent = "連線遭拒 (請檢查 Firebase Rules)";
 } else {
-bar.className = "bg-amber-600 text-white px-4 py-1 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all";
+bar.className = "bg-amber-600 text-white px-4 py-1.5 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all";
 statusText.innerHTML = <i class="fa-solid fa-spinner fa-spin"></i> ${escapeHTML(message)};
 }
 }
 ​window.loadFromCloud = async function() {
-if (!db) return;
+if (!db) {
+updateCloudStatus('error', 'Firestore 未能建立實例');
+return;
+}
 try {
-updateCloudStatus('connecting', '正在讀取 Firestore 資料...');
+updateCloudStatus('connecting', '正在連接 Firestore (taxirecord123)...');
 const docRef = doc(db, "taxi_system", "main_data");
-const docSnap = await getDoc(docRef);
-​if (docSnap.exists()) {
-const data = docSnap.data();
-if (data.records) window.rosterRecords = data.records;
-if (data.notes) window.notesRecords = data.notes;
-if (data.drivers) window.driversDb = data.drivers;
-​window.renderTable();
-window.ren
+​// 加入 5 秒逾時保護
+const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout-5s: 連線逾時")), 5000));
+cons
