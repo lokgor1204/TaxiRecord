@@ -36,9 +36,11 @@
         const recordsCollection = collection(db, "shiftRecords");
         const notesCollection = collection(db, "shiftNotes");
 
+        // 主紀錄 DOM
         const form = document.getElementById('recordForm');
         const nameInput = document.getElementById('name');
         const phoneInput = document.getElementById('phone');
+        const plateInput = document.getElementById('plate'); // 新增車牌
         const recordsList = document.getElementById('recordsList');
         const loadingIndicator = document.getElementById('loading');
         const errorMessage = document.getElementById('errorMessage');
@@ -56,6 +58,7 @@
         const panelRecords = document.getElementById('panelRecords');
         const panelNotes = document.getElementById('panelNotes');
 
+        // 備註 DOM
         const noteForm = document.getElementById('noteForm');
         const noteDriver = document.getElementById('noteDriver');
         const notePhone = document.getElementById('notePhone');
@@ -67,7 +70,7 @@
         const noteCancelBtn = document.getElementById('noteCancelBtn');
         const addNoteBtn = document.getElementById('addNoteBtn');
 
-        const APP_VERSION = 'V1.0';
+        const APP_VERSION = 'V1.1'; // 更新版本
         versionEl.textContent = APP_VERSION;
 
         let selectedWeekdays = new Set();
@@ -179,6 +182,7 @@
                         id: docSnap.id,
                         name: data.name || '',
                         phone: data.phone || '',
+                        plate: data.plate || '', // 讀取車牌
                         weekdays: weekdays,
                         shift: data.shift || '',
                         createdAt: data.createdAt || null
@@ -238,6 +242,7 @@
                     : '<span class="day-tag empty">未設定</span>';
 
                 const shiftDisplay = SHIFT_LABEL[rec.shift] || rec.shift;
+                const plateDisplay = rec.plate ? `<span class="record-plate">${escapeHtml(rec.plate)}</span>` : '';
 
                 const cleanPhone = rec.phone.replace(/[^0-9]/g, '');
                 let waNumber = cleanPhone;
@@ -252,6 +257,7 @@
                             <div class="row-left">
                                 <span class="record-name">${escapeHtml(rec.name)}</span>
                                 <span class="record-shift ${rec.shift}">${shiftDisplay}</span>
+                                ${plateDisplay}
                             </div>
                             <div class="record-contact">
                                 <span class="record-phone">${escapeHtml(rec.phone)}</span>
@@ -384,6 +390,7 @@
                 id: tempId,
                 name: data.name,
                 phone: data.phone,
+                plate: data.plate || '',
                 weekdays: data.weekdays,
                 shift: data.shift,
                 createdAt: new Date(),
@@ -500,6 +507,7 @@
                         await addDoc(recordsCollection, {
                             name: change.data.name,
                             phone: change.data.phone,
+                            plate: change.data.plate || '',
                             weekdays: change.data.weekdays,
                             shift: change.data.shift,
                             createdAt: new Date()
@@ -509,6 +517,7 @@
                         await updateDoc(doc(db, "shiftRecords", change.id), {
                             name: change.data.name,
                             phone: change.data.phone,
+                            plate: change.data.plate || '',
                             weekdays: change.data.weekdays,
                             shift: change.data.shift
                         });
@@ -577,6 +586,7 @@
             editingId = id;
             nameInput.value = rec.name;
             phoneInput.value = rec.phone;
+            plateInput.value = rec.plate || ''; // 填入車牌
             selectedWeekdays = new Set(rec.weekdays);
             document.querySelectorAll('.weekday-btn').forEach(btn => {
                 btn.classList.toggle('active', selectedWeekdays.has(btn.dataset.day));
@@ -596,6 +606,7 @@
             editingId = null;
             nameInput.value = '';
             phoneInput.value = '';
+            plateInput.value = ''; // 清空車牌
             selectedWeekdays.clear();
             document.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
             selectedShift = null;
@@ -690,6 +701,7 @@
                 e.preventDefault();
                 const name = nameInput.value.trim();
                 const phone = phoneInput.value.trim();
+                const plate = plateInput.value.trim(); // 攞車牌
                 const weekdaysArray = Array.from(selectedWeekdays);
 
                 if (!name || !phone) { alert('請填寫人名、電話。'); return; }
@@ -697,7 +709,7 @@
                 if (!selectedShift) { alert('請揀選更別（早更或夜更）。'); return; }
                 if (phone.length < 8) { alert('電話號碼似乎太短，請確認。'); return; }
 
-                const data = { name, phone, weekdays: weekdaysArray, shift: selectedShift };
+                const data = { name, phone, plate, weekdays: weekdaysArray, shift: selectedShift };
 
                 if (editingId) {
                     queueUpdate(editingId, data);
@@ -812,7 +824,7 @@
         .form-card { background: #f9fafb; border-radius: 10px; padding: clamp(14px, 3.5vw, 20px) clamp(12px, 3vw, 16px); margin-bottom: clamp(20px, 5vw, 28px); border: 1px solid #e5e7eb; }
         .form-card h2 { font-size: clamp(0.9rem, 3.2vw, 1rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
         
-        /* 🛠️ 修正：強制第一行兩格並排並撐滿 */
+        /* 🛠️ 強制第一行兩格並排並撐滿 */
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
         
         .input-group { display: flex; flex-direction: column; gap: 5px; }
@@ -863,6 +875,9 @@
         .record-shift.morning { background: #fef3c7; color: #92400e; }
         .record-shift.night { background: #e5e7eb; color: #374151; }
 
+        /* 車牌標籤 */
+        .record-plate { font-weight: 600; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 8px; border-radius: 4px; background: #111827; color: #facc15; white-space: nowrap; flex-shrink: 0; letter-spacing: 1px; }
+
         .record-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 
         .wa-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; background: #e8f5e9; color: #2e7d32; text-decoration: none; border: 1px solid #a5d6a7; transition: 0.12s; flex-shrink: 0; }
@@ -886,35 +901,15 @@
         .note-form-card h3 { font-size: clamp(0.88rem, 3vw, 0.95rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
 
         /* 第一行：開始日期 + 結束日期 (強制兩格) */
-        .note-line-1 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
+        .note-line-1 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         /* 第二行：司機姓名 + 電話號碼 (強制兩格) */
-        .note-line-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
+        .note-line-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         /* 第三行：備註事情 + 加入掣 */
-        .note-line-3 {
-            display: flex;
-            gap: 8px;
-            align-items: flex-end;
-            margin-bottom: 4px;
-        }
-        .note-line-3 .input-group {
-            flex: 1;
-        }
+        .note-line-3 { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; }
+        .note-line-3 .input-group { flex: 1; }
 
         /* 🛠️ 只有備註表單入面嘅 input 先縮細，唔會影響「新增紀錄」 */
-        .note-form-card .input-group input {
-            padding: 9px 8px;
-            font-size: 0.85rem;
-        }
+        .note-form-card .input-group input { padding: 9px 8px; font-size: 0.85rem; }
 
         /* ===== 備註紀錄列表 ===== */
         .note-item { background: white; border-radius: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; margin-bottom: 7px; }
@@ -946,7 +941,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士替更編更</h1>
-                <span class="version" id="version">V1.0</span>
+                <span class="version" id="version">V1.1</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -982,9 +977,13 @@
                             <label>逢星期幾返工（可揀多日）</label>
                             <div id="weekdayButtons" class="weekday-selector"></div>
                         </div>
-                        <div class="input-group" style="grid-column: 1 / -1;">
+                        <div class="input-group">
                             <label>更別</label>
                             <div id="shiftButtons" class="shift-selector"></div>
+                        </div>
+                        <div class="input-group">
+                            <label>車牌（選填）</label>
+                            <input type="text" id="plate" placeholder="AB 1234">
                         </div>
                     </div>
                     <!-- 撳掣靠左排埋 -->
