@@ -45,13 +45,26 @@
 
         const searchDriverInput = document.getElementById('searchDriver');
 
-        const APP_VERSION = 'V1.9'; 
+        // 備註搜尋元素
+        const searchNoteStart = document.getElementById('searchNoteStart');
+        const searchNoteEnd = document.getElementById('searchNoteEnd');
+        const searchNoteType = document.getElementById('searchNoteType');
+        const searchNoteShift = document.getElementById('searchNoteShift');
+        const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
+
+        const APP_VERSION = 'V2.1'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
         let currentNotes = [];
         let currentDrivers = [];
         let driverSearchQuery = ''; 
+
+        // 備註搜尋條件
+        let noteSearchStart = '';
+        let noteSearchEnd = '';
+        let noteSearchType = '';
+        let noteSearchShift = '';
 
         let pendingChanges = [];
         let pendingNoteChanges = [];
@@ -224,7 +237,6 @@
                     currentDrivers.push({ id: docSnap.id, ...docSnap.data() });
                 });
                 renderDrivers();
-                // 當司機資料更新時，重新渲染備註（確保標籤實時更新）
                 renderNotes(); 
             });
         }
@@ -304,11 +316,36 @@
 
         function renderNotes() {
             const list = document.getElementById('notesList');
-            if (currentNotes.length === 0) {
-                list.innerHTML = `<div class="empty-message">暫時未有備註。</div>`;
+            
+            // 1. 過濾條件
+            let filteredNotes = currentNotes;
+            if (noteSearchStart) {
+                filteredNotes = filteredNotes.filter(n => n.endDate && n.endDate >= noteSearchStart);
+            }
+            if (noteSearchEnd) {
+                filteredNotes = filteredNotes.filter(n => n.startDate && n.startDate <= noteSearchEnd);
+            }
+            if (noteSearchType) {
+                filteredNotes = filteredNotes.filter(n => {
+                    const matchedDriver = currentDrivers.find(d => d.name === n.driver);
+                    const t = (matchedDriver && matchedDriver.type) ? matchedDriver.type : n.type;
+                    return t === noteSearchType;
+                });
+            }
+            if (noteSearchShift) {
+                filteredNotes = filteredNotes.filter(n => {
+                    const matchedDriver = currentDrivers.find(d => d.name === n.driver);
+                    const s = (matchedDriver && matchedDriver.shift) ? matchedDriver.shift : n.shift;
+                    return s === noteSearchShift;
+                });
+            }
+
+            if (filteredNotes.length === 0) {
+                list.innerHTML = `<div class="empty-message">冇符合條件嘅備註。</div>`;
                 return;
             }
-            list.innerHTML = currentNotes.map(n => {
+
+            list.innerHTML = filteredNotes.map(n => {
                 const dates = n.startDate && n.endDate ? `${n.startDate} 至 ${n.endDate}` : '未設定';
                 let wa = '';
                 if (n.phone) {
@@ -317,19 +354,17 @@
                     wa = `<a class="wa-btn" href="https://wa.me/${num}" target="_blank">${WA_ICON}</a>`;
                 }
 
-                // 🛠️ 實時對比「司機資料庫」，確保一定顯示到標籤
+                // 自動抓取最新類型同更別
                 let displayType = n.type || '';
+                let displayShift = n.shift || '';
                 const matchedDriver = currentDrivers.find(d => d.name === n.driver);
-                if (matchedDriver && matchedDriver.type) {
-                    displayType = matchedDriver.type;
+                if (matchedDriver) {
+                    if (matchedDriver.type) displayType = matchedDriver.type;
+                    if (matchedDriver.shift) displayShift = matchedDriver.shift;
                 }
 
-                let typeLabel = '';
-                if (displayType === '正更') {
-                    typeLabel = '<span class="type-tag regular">正更</span>';
-                } else if (displayType === '替更') {
-                    typeLabel = '<span class="type-tag substitute">替更</span>';
-                }
+                const typeLabel = displayType === '正更' ? '<span class="type-tag regular">正更</span>' : (displayType === '替更' ? '<span class="type-tag substitute">替更</span>' : '');
+                const shiftLabel = displayShift ? `<span class="record-shift ${displayShift}">${SHIFT_LABEL[displayShift]}</span>` : '';
 
                 return `
                     <div class="note-item ${n._pending ? 'pending' : ''}" data-id="${n.id}">
@@ -341,6 +376,7 @@
                             <div class="row-left">
                                 <span class="driver-name-tag">${escapeHtml(n.driver)}</span>
                                 ${typeLabel}
+                                ${shiftLabel}
                             </div>
                             <div class="record-contact">
                                 <span class="record-phone">${n.phone ? escapeHtml(n.phone) : ''}</span>
@@ -587,6 +623,25 @@
                 renderDrivers();
             });
 
+            // 備註搜尋監聽
+            searchNoteStart.addEventListener('input', (e) => { noteSearchStart = e.target.value; renderNotes(); });
+            searchNoteEnd.addEventListener('input', (e) => { noteSearchEnd = e.target.value; renderNotes(); });
+            searchNoteType.addEventListener('change', (e) => { noteSearchType = e.target.value; renderNotes(); });
+            searchNoteShift.addEventListener('change', (e) => { noteSearchShift = e.target.value; renderNotes(); });
+            
+            // 清除搜尋
+            clearNoteSearchBtn.addEventListener('click', () => {
+                searchNoteStart.value = '';
+                searchNoteEnd.value = '';
+                searchNoteType.value = '';
+                searchNoteShift.value = '';
+                noteSearchStart = '';
+                noteSearchEnd = '';
+                noteSearchType = '';
+                noteSearchShift = '';
+                renderNotes();
+            });
+
             form.onsubmit = (e) => {
                 e.preventDefault();
                 if (!nameInput.value.trim() || !phoneInput.value.trim() || selectedWeekdays.size === 0 || !selectedShift || !selectedType) { alert('請填寫完整資料及選擇更別/正替更'); return; }
@@ -609,14 +664,16 @@
                 e.preventDefault();
                 if (!noteStart.value || !noteEnd.value || !noteDriver.value.trim() || !notePhone.value.trim() || !noteText.value.trim()) { alert('請填寫完整備註資料'); return; }
                 
-                // 🛠️ 儲存時自動抓取該司機嘅類型
+                // 🛠️ 儲存時自動抓取該司機嘅類型同更別
                 let noteType = '';
+                let noteShift = '';
                 const matchedDriver = currentDrivers.find(d => d.name === noteDriver.value.trim());
-                if (matchedDriver && matchedDriver.type) {
-                    noteType = matchedDriver.type;
+                if (matchedDriver) {
+                    if (matchedDriver.type) noteType = matchedDriver.type;
+                    if (matchedDriver.shift) noteShift = matchedDriver.shift;
                 }
 
-                const data = { startDate: noteStart.value, endDate: noteEnd.value, driver: noteDriver.value.trim(), phone: notePhone.value.trim(), text: noteText.value.trim(), type: noteType };
+                const data = { startDate: noteStart.value, endDate: noteEnd.value, driver: noteDriver.value.trim(), phone: notePhone.value.trim(), text: noteText.value.trim(), type: noteType, shift: noteShift };
                 
                 if (editingNoteId) {
                     const idx = currentNotes.findIndex(n => n.id === editingNoteId);
@@ -750,8 +807,8 @@
         
         .input-group { display: flex; flex-direction: column; gap: 5px; }
         .input-group label { font-size: clamp(0.75rem, 2.6vw, 0.82rem); font-weight: 600; color: #374151; margin-left: 2px; }
-        .input-group input { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; }
-        .input-group input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
+        .input-group input, .input-group select { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; }
+        .input-group input:focus, .input-group select:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
 
         .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; }
         .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
@@ -780,6 +837,14 @@
         .search-input { padding: 6px 12px; border-radius: 20px; border: 1px solid #d1d5db; font-size: 0.85rem; outline: none; width: 150px; }
         .search-input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
 
+        /* 🛠️ 備註搜尋列 */
+        .notes-filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+        .notes-filter-bar .filter-group { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: #4b5563; }
+        .notes-filter-bar input[type="date"], .notes-filter-bar select { padding: 5px 8px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; outline: none; }
+        .notes-filter-bar input[type="date"]:focus, .notes-filter-bar select:focus { border-color: #6b7280; }
+        .btn-clear { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: 0.12s; }
+        .btn-clear:hover { background: #fef2f2; }
+
         .records-list, .driver-list { display: flex; flex-direction: column; gap: 7px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
 
         .record-item, .note-item, .driver-item { background: white; border-radius: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; }
@@ -792,7 +857,7 @@
         .driver-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 120px; }
         .driver-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-        /* 🛠️ 新增：淺藍色底嘅司機名標籤 */
+        /* 淺藍色底嘅司機名標籤 */
         .driver-name-tag { 
             font-weight: 600; 
             font-size: clamp(0.95rem, 3.6vw, 1.05rem); 
@@ -864,7 +929,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V1.9</span>
+                <span class="version" id="version">V2.1</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -964,6 +1029,33 @@
                         <button type="button" id="noteCancelBtn" class="btn btn-outline" style="display: none; padding: 9px 16px; white-space: nowrap;">取消修改</button>
                     </div>
                 </form>
+            </div>
+
+            <!-- 🛠️ 備註搜尋列 -->
+            <div class="notes-filter-bar">
+                <div class="filter-group">
+                    <span>日期：</span>
+                    <input type="date" id="searchNoteStart" title="開始日期搜尋">
+                    <span>至</span>
+                    <input type="date" id="searchNoteEnd" title="結束日期搜尋">
+                </div>
+                <div class="filter-group">
+                    <span>類型：</span>
+                    <select id="searchNoteType">
+                        <option value="">全部</option>
+                        <option value="正更">正更</option>
+                        <option value="替更">替更</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <span>更別：</span>
+                    <select id="searchNoteShift">
+                        <option value="">全部</option>
+                        <option value="morning">早更</option>
+                        <option value="night">夜更</option>
+                    </select>
+                </div>
+                <button type="button" id="clearNoteSearchBtn" class="btn-clear">清除搜尋</button>
             </div>
 
             <div id="notesList" class="records-list">
