@@ -811,8 +811,9 @@
 
         .form-card { background: #f9fafb; border-radius: 10px; padding: clamp(14px, 3.5vw, 20px) clamp(12px, 3vw, 16px); margin-bottom: clamp(20px, 5vw, 28px); border: 1px solid #e5e7eb; }
         .form-card h2 { font-size: clamp(0.9rem, 3.2vw, 1rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
-        .form-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px; }
-        @media (min-width: 480px) { .form-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+        
+        /* 🛠️ 修正：強制第一行兩格並排並撐滿 */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
         
         .input-group { display: flex; flex-direction: column; gap: 5px; }
         .input-group label { font-size: clamp(0.75rem, 2.6vw, 0.82rem); font-weight: 600; color: #374151; margin-left: 2px; }
@@ -909,7 +910,7 @@
             flex: 1;
         }
 
-        /* 🛠️ 修正：只有備註表單入面嘅 input 先縮細，唔會影響「新增紀錄」 */
+        /* 🛠️ 只有備註表單入面嘅 input 先縮細，唔會影響「新增紀錄」 */
         .note-form-card .input-group input {
             padding: 9px 8px;
             font-size: 0.85rem;
@@ -986,7 +987,7 @@
                             <div id="shiftButtons" class="shift-selector"></div>
                         </div>
                     </div>
-                    <!-- 改咗做 flex-start，撳掣會靠左排埋 -->
+                    <!-- 撳掣靠左排埋 -->
                     <div class="record-form-actions">
                         <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
                         <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">取消修改</button>
