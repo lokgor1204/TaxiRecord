@@ -45,7 +45,7 @@
 
         const searchDriverInput = document.getElementById('searchDriver');
 
-        const APP_VERSION = 'V1.7'; 
+        const APP_VERSION = 'V1.8'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -239,7 +239,7 @@
         }
 
         // ==========================================
-        // 渲染數據 (加入淺藍色標籤)
+        // 渲染數據
         // ==========================================
         function renderRecords() {
             const list = document.getElementById('recordsList');
@@ -314,6 +314,19 @@
                     const num = c.length === 8 ? '852' + c : c;
                     wa = `<a class="wa-btn" href="https://wa.me/${num}" target="_blank">${WA_ICON}</a>`;
                 }
+
+                // 🛠️ 自動判斷並顯示正更/替更標籤
+                let typeLabel = '';
+                const matchedDriver = currentDrivers.find(d => d.name === n.driver);
+                if (matchedDriver && matchedDriver.type) {
+                    typeLabel = matchedDriver.type === '正更' 
+                        ? '<span class="type-tag regular">正更</span>' 
+                        : '<span class="type-tag substitute">替更</span>';
+                } else if (n.type) {
+                    // 如果雲端有儲存舊資料嘅 type 就用返
+                    typeLabel = n.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
+                }
+
                 return `
                     <div class="note-item ${n._pending ? 'pending' : ''}" data-id="${n.id}">
                         <div class="note-row-top">
@@ -321,7 +334,10 @@
                             <span class="note-text">${escapeHtml(n.text)}</span>
                         </div>
                         <div class="note-row-bottom">
-                            <span class="driver-name-tag">${escapeHtml(n.driver)}</span>
+                            <div class="row-left">
+                                <span class="driver-name-tag">${escapeHtml(n.driver)}</span>
+                                ${typeLabel}
+                            </div>
                             <div class="record-contact">
                                 <span class="record-phone">${n.phone ? escapeHtml(n.phone) : ''}</span>
                                 ${wa}
@@ -588,7 +604,16 @@
             noteForm.onsubmit = (e) => {
                 e.preventDefault();
                 if (!noteStart.value || !noteEnd.value || !noteDriver.value.trim() || !notePhone.value.trim() || !noteText.value.trim()) { alert('請填寫完整備註資料'); return; }
-                const data = { startDate: noteStart.value, endDate: noteEnd.value, driver: noteDriver.value.trim(), phone: notePhone.value.trim(), text: noteText.value.trim() };
+                
+                // 🛠️ 儲存時自動抓取該司機嘅類型
+                let noteType = '';
+                const matchedDriver = currentDrivers.find(d => d.name === noteDriver.value.trim());
+                if (matchedDriver && matchedDriver.type) {
+                    noteType = matchedDriver.type;
+                }
+
+                const data = { startDate: noteStart.value, endDate: noteEnd.value, driver: noteDriver.value.trim(), phone: notePhone.value.trim(), text: noteText.value.trim(), type: noteType };
+                
                 if (editingNoteId) {
                     const idx = currentNotes.findIndex(n => n.id === editingNoteId);
                     const pAdd = pendingNoteChanges.find(c => c.type === 'add' && c.tempId === editingNoteId);
@@ -835,7 +860,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V1.7</span>
+                <span class="version" id="version">V1.8</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
