@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>的士編更雲端系統 v2.0.9</title>
+    <title>的士編更系統 v3.1.1 (雲端連線除錯版)</title>
     <!-- 載入 Tailwind CSS 與 FontAwesome 圖示 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -26,6 +26,13 @@
 
     <!-- 頂部導航與狀態欄 -->
     <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+        <!-- 雲端連線即時通知橫幅 -->
+        <div id="cloudStatusBar" class="bg-amber-600 text-white px-4 py-1 text-xs font-bold text-center flex items-center justify-center gap-2 transition-all">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            <span id="cloudStatusText">正在連接 Firebase 雲端 (taxirecord123)...</span>
+            <button onclick="checkCloudConnection()" class="underline ml-2 text-[11px] hover:text-slate-200">手動重試</button>
+        </div>
+
         <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
                 <div class="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center shadow-inner shrink-0">
@@ -33,22 +40,24 @@
                 </div>
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
-                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更雲端系統</h1>
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v2.0.9</span>
+                        <h1 class="font-extrabold text-base sm:text-lg tracking-tight truncate">的士編更系統</h1>
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700 rounded-md shrink-0">v3.1.1</span>
                     </div>
-                    <!-- 即時連線狀態顯示 -->
-                    <div id="cloudStatusIndicator" class="flex items-center gap-1.5 text-[11px] text-amber-300 font-medium mt-0.5">
-                        <span id="cloudStatusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                        <span id="cloudStatusText" onclick="showErrorDetails(window.lastCloudError || '正在透過 REST API 連接雲端...')">正在連接 Firebase 雲端...</span>
+                    <div id="connectionSubText" class="flex items-center gap-1.5 text-[11px] text-amber-300 font-medium mt-0.5">
+                        <span id="connectionDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="connectionLabel">正在初始化 Firebase SDK...</span>
                     </div>
                 </div>
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
-                <!-- 雲端強制同步按鈕 -->
-                <button id="manualSyncBtn" onclick="manualSaveAndSyncToCloud()" class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition flex items-center gap-2 cursor-pointer">
-                    <i id="manualSyncIcon" class="fa-solid fa-cloud-arrow-up"></i>
-                    <span id="manualSyncText">立即同步至雲端</span>
+                <button onclick="syncToCloud()" class="bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>立即儲存並同步</span>
+                </button>
+                <button onclick="exportLocalData()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-download"></i>
+                    <span>匯出</span>
                 </button>
             </div>
         </div>
@@ -68,27 +77,6 @@
             </div>
         </div>
     </header>
-
-    <!-- 錯誤詳細資訊彈窗 -->
-    <div id="errorModal" class="hidden fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
-        <div class="bg-slate-900 text-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-rose-500/50 space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div class="flex items-center gap-2.5 text-rose-400">
-                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
-                    <h3 class="font-bold text-base">Firebase 雲端連線診斷資訊</h3>
-                </div>
-                <button onclick="closeErrorModal()" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-            <p class="text-xs text-slate-300 leading-relaxed">以下是詳細的錯誤代碼，請複製並發送給我進行分析：</p>
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 max-h-60 overflow-y-auto">
-                <pre id="errorModalContent" class="text-xs font-mono text-rose-300 whitespace-pre-wrap word-break"></pre>
-            </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <button onclick="copyErrorContent()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition">複製錯誤代碼</button>
-                <button onclick="closeErrorModal()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition">關閉</button>
-            </div>
-        </div>
-    </div>
 
     <!-- 提示訊息框 (Toast) -->
     <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
@@ -235,4 +223,22 @@
                             <button onclick="setFilterDay('星期四')" data-day="星期四" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期四</button>
                             <button onclick="setFilterDay('星期五')" data-day="星期五" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期五</button>
                             <button onclick="setFilterDay('星期六')" data-day="星期六" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期六</button>
-                            <button onclick="setFilterDay('星期日')" data-day="星期日" class="day-filter-btn shrink-0 px-3 py-1.5 round
+                            <button onclick="setFilterDay('星期日')" data-day="星期日" class="day-filter-btn shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition">星期日</button>
+                        </div>
+                    </div>
+
+                    <!-- 排班資料顯示容器 -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                <i class="fa-solid fa-arrow-down-a-z text-slate-400"></i>
+                                排序：⭐ 重點司機優先 → 正更 → 替更（同組按 A-Z）
+                            </span>
+                        </div>
+
+                        <!-- 手機版卡片清單 -->
+                        <div id="mobileRosterList" class="block sm:hidden p-3 space-y-3"></div>
+
+                        <!-- 電腦版表格 -->
+                        <div class="hidden sm:block overflow-x-auto">
+                            <table class="w-full text-left 
