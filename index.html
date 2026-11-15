@@ -3,20 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>的士替更編更 · 雲端紀錄</title>
+    <title>的士編更系統 · 雲端紀錄</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics.js";
         import { 
-            getFirestore, 
-            collection, 
-            addDoc, 
-            deleteDoc, 
-            doc, 
-            onSnapshot, 
-            query, 
-            orderBy,
-            updateDoc
+            getFirestore, collection, addDoc, deleteDoc, doc, 
+            onSnapshot, query, orderBy, updateDoc 
         } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -33,74 +26,83 @@
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
         const db = getFirestore(app);
-        const recordsCollection = collection(db, "shiftRecords");
-        const notesCollection = collection(db, "shiftNotes");
+        
+        // 三個 Collections
+        const recordsCollection = collection(db, "shiftRecords"); // 司機紀錄
+        const notesCollection = collection(db, "shiftNotes");     // 備註
+        const driversCollection = collection(db, "driversData");  // 司機資料
 
-        // 主紀錄 DOM
-        const form = document.getElementById('recordForm');
-        const nameInput = document.getElementById('name');
-        const phoneInput = document.getElementById('phone');
-        const plateInput = document.getElementById('plate'); // 新增車牌
-        const recordsList = document.getElementById('recordsList');
-        const loadingIndicator = document.getElementById('loading');
-        const errorMessage = document.getElementById('errorMessage');
-        const saveBtn = document.getElementById('saveBtn');
-        const deleteAllBtn = document.getElementById('deleteAllBtn');
-        const formTitle = document.getElementById('formTitle');
-        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        // 主 UI
+        const tabRecords = document.getElementById('tabRecords');
+        const tabNotes = document.getElementById('tabNotes');
+        const tabDrivers = document.getElementById('tabDrivers');
+        const panelRecords = document.getElementById('panelRecords');
+        const panelNotes = document.getElementById('panelNotes');
+        const panelDrivers = document.getElementById('panelDrivers');
+
         const connectionStatus = document.getElementById('connectionStatus');
         const versionEl = document.getElementById('version');
         const cloudSaveBtn = document.getElementById('cloudSaveBtn');
         const saveStatusMsg = document.getElementById('saveStatusMsg');
 
-        const tabRecords = document.getElementById('tabRecords');
-        const tabNotes = document.getElementById('tabNotes');
-        const panelRecords = document.getElementById('panelRecords');
-        const panelNotes = document.getElementById('panelNotes');
-
-        // 備註 DOM
-        const noteForm = document.getElementById('noteForm');
-        const noteDriver = document.getElementById('noteDriver');
-        const notePhone = document.getElementById('notePhone');
-        const noteStart = document.getElementById('noteStart');
-        const noteEnd = document.getElementById('noteEnd');
-        const noteText = document.getElementById('noteText');
-        const notesList = document.getElementById('notesList');
-        const noteTitle = document.getElementById('noteTitle');
-        const noteCancelBtn = document.getElementById('noteCancelBtn');
-        const addNoteBtn = document.getElementById('addNoteBtn');
-
-        const APP_VERSION = 'V1.1'; // 更新版本
+        const APP_VERSION = 'V1.2'; // 版本更新
         versionEl.textContent = APP_VERSION;
 
-        let selectedWeekdays = new Set();
-        let selectedShift = null;
+        // 全局數據
         let currentRecords = [];
-        let editingId = null;
-
         let currentNotes = [];
-        let editingNoteId = null;
+        let currentDrivers = [];
 
+        // 待同步隊列
         let pendingChanges = [];
         let pendingNoteChanges = [];
+        let pendingDriverChanges = [];
+
+        // 編輯狀態
+        let editingId = null;
+        let editingNoteId = null;
+        let editingDriverId = null;
+
+        // 司機紀錄表單
+        const form = document.getElementById('recordForm');
+        const nameInput = document.getElementById('name');
+        const phoneInput = document.getElementById('phone');
+        const plateInput = document.getElementById('plate');
+        const formTitle = document.getElementById('formTitle');
+        const saveBtn = document.getElementById('saveBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        let selectedWeekdays = new Set();
+        let selectedShift = null;
+        let selectedType = null; // 正更 / 替更
+
+        // 備註表單
+        const noteForm = document.getElementById('noteForm');
+        const noteStart = document.getElementById('noteStart');
+        const noteEnd = document.getElementById('noteEnd');
+        const noteDriver = document.getElementById('noteDriver');
+        const notePhone = document.getElementById('notePhone');
+        const noteText = document.getElementById('noteText');
+        const noteTitle = document.getElementById('noteTitle');
+        const addNoteBtn = document.getElementById('addNoteBtn');
+        const noteCancelBtn = document.getElementById('noteCancelBtn');
+
+        // 司機資料表單
+        const driverForm = document.getElementById('driverForm');
+        const dName = document.getElementById('dName');
+        const dPhone = document.getElementById('dPhone');
+        const driverTitle = document.getElementById('driverTitle');
+        const addDriverBtn = document.getElementById('addDriverBtn');
+        const driverCancelBtn = document.getElementById('driverCancelBtn');
 
         const WEEKDAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-        const WEEKDAY_LABEL = {
-            'mon': '一', 'tue': '二', 'wed': '三',
-            'thu': '四', 'fri': '五', 'sat': '六', 'sun': '日'
-        };
+        const WEEKDAY_LABEL = { 'mon': '一', 'tue': '二', 'wed': '三', 'thu': '四', 'fri': '五', 'sat': '六', 'sun': '日' };
         const SHIFT_LABEL = { 'morning': '早更', 'night': '夜更' };
-
         const NOTE_EXPIRE_DAYS = 6;
 
         const WA_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
 
         function setStatus(type) {
-            const map = {
-                connecting: { text: '連接中…', cls: 'status-connecting' },
-                connected: { text: '已連接', cls: 'status-connected' },
-                failed: { text: '連線失敗', cls: 'status-failed' }
-            };
+            const map = { connecting: { text: '連接中…', cls: 'status-connecting' }, connected: { text: '已連接', cls: 'status-connected' }, failed: { text: '連線失敗', cls: 'status-failed' } };
             const s = map[type] || map.connecting;
             connectionStatus.textContent = s.text;
             connectionStatus.className = 'conn-status ' + s.cls;
@@ -111,13 +113,11 @@
             saveStatusMsg.className = 'save-msg ' + (ok ? 'save-ok' : 'save-fail');
             saveStatusMsg.style.display = 'inline-block';
             clearTimeout(window.__saveMsgTimer);
-            window.__saveMsgTimer = setTimeout(() => {
-                saveStatusMsg.style.display = 'none';
-            }, 3000);
+            window.__saveMsgTimer = setTimeout(() => { saveStatusMsg.style.display = 'none'; }, 3000);
         }
 
         function updatePendingIndicator() {
-            const total = pendingChanges.length + pendingNoteChanges.length;
+            const total = pendingChanges.length + pendingNoteChanges.length + pendingDriverChanges.length;
             if (total > 0) {
                 cloudSaveBtn.classList.add('has-pending');
                 cloudSaveBtn.textContent = `儲存 (${total})`;
@@ -128,661 +128,490 @@
         }
 
         function switchTab(tab) {
+            tabRecords.classList.remove('active');
+            tabNotes.classList.remove('active');
+            tabDrivers.classList.remove('active');
+            panelRecords.style.display = 'none';
+            panelNotes.style.display = 'none';
+            panelDrivers.style.display = 'none';
+
             if (tab === 'records') {
                 tabRecords.classList.add('active');
-                tabNotes.classList.remove('active');
                 panelRecords.style.display = 'block';
-                panelNotes.style.display = 'none';
-            } else {
+            } else if (tab === 'notes') {
                 tabNotes.classList.add('active');
-                tabRecords.classList.remove('active');
                 panelNotes.style.display = 'block';
-                panelRecords.style.display = 'none';
+            } else {
+                tabDrivers.classList.add('active');
+                panelDrivers.style.display = 'block';
             }
         }
 
-        function isNoteExpired(note) {
-            if (!note.endDate) return false;
-            const end = new Date(note.endDate + 'T23:59:59');
-            const expireAt = new Date(end.getTime() + NOTE_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
-            return new Date() > expireAt;
-        }
+        // ==========================================
+        // Autocomplete 自動填入功能
+        // ==========================================
+        function setupAutocomplete(inputEl, phoneEl) {
+            // 建立下拉選單容器
+            const dropdown = document.createElement('div');
+            dropdown.className = 'autocomplete-dropdown';
+            dropdown.style.display = 'none';
+            inputEl.parentNode.style.position = 'relative';
+            inputEl.parentNode.appendChild(dropdown);
 
-        async function cleanupExpiredNotes(notes) {
-            const expired = notes.filter(n => isNoteExpired(n));
-            if (expired.length === 0) return;
-            for (const n of expired) {
-                try {
-                    await deleteDoc(doc(db, "shiftNotes", n.id));
-                    console.log('自動刪除過期備註:', n.id, n.driver, n.endDate);
-                } catch (err) {
-                    console.error('自動刪除失敗:', n.id, err);
+            inputEl.addEventListener('input', () => {
+                const val = inputEl.value.trim().toLowerCase();
+                if (!val) {
+                    dropdown.style.display = 'none';
+                    return;
                 }
-            }
-        }
+                
+                // 從現有司機資料庫過濾
+                const matches = currentDrivers.filter(d => d.name.toLowerCase().includes(val));
+                
+                if (matches.length === 0) {
+                    dropdown.style.display = 'none';
+                    return;
+                }
 
-        function listenToRecords() {
-            loadingIndicator.style.display = 'block';
-            errorMessage.textContent = '';
-            setStatus('connecting');
+                dropdown.innerHTML = matches.map(d => `
+                    <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}">
+                        <span>${escapeHtml(d.name)}</span>
+                        <span class="ac-phone">${escapeHtml(d.phone)}</span>
+                    </div>
+                `).join('');
+                dropdown.style.display = 'block';
 
-            const q = query(recordsCollection, orderBy("createdAt", "desc"));
-
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                if (pendingChanges.length > 0) return;
-
-                currentRecords = [];
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    let weekdays = data.weekdays;
-                    if (!Array.isArray(weekdays)) {
-                        weekdays = data.weekday ? [data.weekday] : [];
-                    }
-                    currentRecords.push({
-                        id: docSnap.id,
-                        name: data.name || '',
-                        phone: data.phone || '',
-                        plate: data.plate || '', // 讀取車牌
-                        weekdays: weekdays,
-                        shift: data.shift || '',
-                        createdAt: data.createdAt || null
+                // 點擊選項自動填入
+                dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        inputEl.value = item.getAttribute('data-name');
+                        if (phoneEl) phoneEl.value = item.getAttribute('data-phone');
+                        dropdown.style.display = 'none';
                     });
                 });
-                renderRecords(currentRecords);
-                loadingIndicator.style.display = 'none';
-                setStatus('connected');
-            }, (error) => {
-                console.error("監聽錯誤:", error);
-                errorMessage.textContent = `載入失敗：${error.message}`;
-                loadingIndicator.style.display = 'none';
-                setStatus('failed');
             });
 
-            return unsubscribe;
+            // 點擊外部關閉
+            document.addEventListener('click', (e) => {
+                if (e.target !== inputEl && !dropdown.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                }
+            });
+        }
+
+        // ==========================================
+        // 1. 監聽數據
+        // ==========================================
+        function listenToRecords() {
+            const q = query(recordsCollection, orderBy("createdAt", "desc"));
+            onSnapshot(q, (snapshot) => {
+                if (pendingChanges.length > 0) return;
+                currentRecords = [];
+                snapshot.forEach(docSnap => {
+                    const d = docSnap.data();
+                    currentRecords.push({ id: docSnap.id, ...d, weekdays: Array.isArray(d.weekdays) ? d.weekdays : (d.weekday ? [d.weekday] : []) });
+                });
+                renderRecords();
+                setStatus('connected');
+            }, (err) => { console.error(err); setStatus('failed'); });
         }
 
         function listenToNotes() {
             const q = query(notesCollection, orderBy("createdAt", "desc"));
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            onSnapshot(q, (snapshot) => {
                 if (pendingNoteChanges.length > 0) return;
                 currentNotes = [];
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    currentNotes.push({
-                        id: docSnap.id,
-                        driver: data.driver || '',
-                        phone: data.phone || '',
-                        startDate: data.startDate || '',
-                        endDate: data.endDate || '',
-                        text: data.text || '',
-                        createdAt: data.createdAt || null
-                    });
+                snapshot.forEach(docSnap => {
+                    currentNotes.push({ id: docSnap.id, ...docSnap.data() });
                 });
-
                 cleanupExpiredNotes(currentNotes);
-
-                renderNotes(currentNotes);
-            }, (error) => {
-                console.error("備註監聽錯誤:", error);
+                renderNotes();
             });
-            return unsubscribe;
         }
 
-        function renderRecords(records) {
-            if (records.length === 0) {
-                recordsList.innerHTML = `<div class="empty-message">暫時未有紀錄，請新增替更資料。</div>`;
+        function listenToDrivers() {
+            const q = query(driversCollection, orderBy("createdAt", "desc"));
+            onSnapshot(q, (snapshot) => {
+                if (pendingDriverChanges.length > 0) return;
+                currentDrivers = [];
+                snapshot.forEach(docSnap => {
+                    currentDrivers.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                renderDrivers();
+            });
+        }
+
+        // ==========================================
+        // 2. 渲染數據
+        // ==========================================
+        function renderRecords() {
+            const list = document.getElementById('recordsList');
+            if (currentRecords.length === 0) {
+                list.innerHTML = `<div class="empty-message">暫時未有司機紀錄。</div>`;
                 return;
             }
+            list.innerHTML = currentRecords.map(rec => {
+                const days = WEEKDAY_ORDER.filter(d => rec.weekdays.includes(d)).map(d => `<span class="day-tag">${WEEKDAY_LABEL[d]}</span>`).join('');
+                const shift = SHIFT_LABEL[rec.shift] || rec.shift;
+                const typeLabel = rec.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
+                const plate = rec.plate ? `<span class="record-plate">${escapeHtml(rec.plate)}</span>` : '';
+                
+                let wa = '';
+                if (rec.phone) {
+                    const c = rec.phone.replace(/[^0-9]/g, '');
+                    const n = c.length === 8 ? '852' + c : c;
+                    wa = `<a class="wa-btn" href="https://wa.me/${n}" target="_blank">${WA_ICON}</a>`;
+                }
 
-            let html = '';
-            records.forEach((rec) => {
-                const sortedDays = WEEKDAY_ORDER.filter(d => rec.weekdays.includes(d));
-                const daysTags = sortedDays.length > 0
-                    ? sortedDays.map(d => `<span class="day-tag">${WEEKDAY_LABEL[d]}</span>`).join('')
-                    : '<span class="day-tag empty">未設定</span>';
-
-                const shiftDisplay = SHIFT_LABEL[rec.shift] || rec.shift;
-                const plateDisplay = rec.plate ? `<span class="record-plate">${escapeHtml(rec.plate)}</span>` : '';
-
-                const cleanPhone = rec.phone.replace(/[^0-9]/g, '');
-                let waNumber = cleanPhone;
-                if (cleanPhone.length === 8) waNumber = '852' + cleanPhone;
-                const waLink = `https://wa.me/${waNumber}`;
-
-                const isPending = rec._pending;
-
-                html += `
-                    <div class="record-item ${isPending ? 'pending' : ''}" data-id="${rec.id}">
+                return `
+                    <div class="record-item ${rec._pending ? 'pending' : ''}" data-id="${rec.id}">
                         <div class="record-row-top">
                             <div class="row-left">
                                 <span class="record-name">${escapeHtml(rec.name)}</span>
-                                <span class="record-shift ${rec.shift}">${shiftDisplay}</span>
-                                ${plateDisplay}
+                                ${typeLabel}
+                                <span class="record-shift ${rec.shift}">${shift}</span>
+                                ${plate}
                             </div>
                             <div class="record-contact">
                                 <span class="record-phone">${escapeHtml(rec.phone)}</span>
-                                <a class="wa-btn" href="${waLink}" target="_blank" rel="noopener" title="用 WhatsApp 聯絡">${WA_ICON}</a>
+                                ${wa}
                             </div>
                         </div>
                         <div class="record-row-bottom">
-                            <div class="days-tags">${daysTags}</div>
+                            <div class="days-tags">${days || '<span class="day-tag empty">未設定</span>'}</div>
                             <div class="record-actions">
-                                <button class="edit-btn" data-id="${rec.id}">修改</button>
-                                <button class="delete-btn" data-id="${rec.id}">刪除</button>
+                                <button class="edit-btn" onclick="enterEditMode('${rec.id}')">修改</button>
+                                <button class="delete-btn" onclick="queueDelete('${rec.id}')">刪除</button>
                             </div>
                         </div>
                     </div>
                 `;
-            });
-
-            recordsList.innerHTML = html;
-
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = e.target.getAttribute('data-id');
-                    if (id) queueDelete(id);
-                });
-            });
-
-            document.querySelectorAll('.edit-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = e.target.getAttribute('data-id');
-                    if (id) enterEditMode(id);
-                });
-            });
+            }).join('');
         }
 
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function renderNotes(notes) {
-            if (notes.length === 0) {
-                notesList.innerHTML = `<div class="empty-message">暫時未有備註。</div>`;
+        function renderNotes() {
+            const list = document.getElementById('notesList');
+            if (currentNotes.length === 0) {
+                list.innerHTML = `<div class="empty-message">暫時未有備註。</div>`;
                 return;
             }
-
-            let html = '';
-            notes.forEach((n) => {
-                const isPending = n._pending;
-                const dateRange = n.startDate && n.endDate
-                    ? `${n.startDate} 至 ${n.endDate}`
-                    : (n.startDate || n.endDate || '未設定日期');
-
-                const cleanPhone = n.phone ? n.phone.replace(/[^0-9]/g, '') : '';
-                let waLink = '';
-                if (cleanPhone) {
-                    let waNumber = cleanPhone;
-                    if (cleanPhone.length === 8) waNumber = '852' + cleanPhone;
-                    waLink = `https://wa.me/${waNumber}`;
+            list.innerHTML = currentNotes.map(n => {
+                const dates = n.startDate && n.endDate ? `${n.startDate} 至 ${n.endDate}` : '未設定';
+                let wa = '';
+                if (n.phone) {
+                    const c = n.phone.replace(/[^0-9]/g, '');
+                    const num = c.length === 8 ? '852' + c : c;
+                    wa = `<a class="wa-btn" href="https://wa.me/${num}" target="_blank">${WA_ICON}</a>`;
                 }
-
-                const waBtnHtml = waLink 
-                    ? `<a class="wa-btn" href="${waLink}" target="_blank" rel="noopener" title="用 WhatsApp 聯絡">${WA_ICON}</a>` 
-                    : '';
-
-                let expireHint = '';
-                if (n.endDate) {
-                    const end = new Date(n.endDate + 'T23:59:59');
-                    const expireAt = new Date(end.getTime() + NOTE_EXPIRE_DAYS * 24 * 60 * 60 * 1000);
-                    const y = expireAt.getFullYear();
-                    const m = String(expireAt.getMonth() + 1).padStart(2, '0');
-                    const d = String(expireAt.getDate()).padStart(2, '0');
-                    expireHint = `<span class="note-expire">${y}-${m}-${d} 自動刪除</span>`;
-                }
-
-                html += `
-                    <div class="note-item ${isPending ? 'pending' : ''}" data-id="${n.id}">
-                        <!-- 第一行：左邊時間，右邊備註事情 (字體加大) -->
+                return `
+                    <div class="note-item ${n._pending ? 'pending' : ''}" data-id="${n.id}">
                         <div class="note-row-top">
-                            <span class="note-date">${dateRange}</span>
+                            <span class="note-date">${dates}</span>
                             <span class="note-text">${escapeHtml(n.text)}</span>
                         </div>
-                        <!-- 第二行：左邊司機名，右邊電話 + WhatsApp -->
                         <div class="note-row-bottom">
-                            <div class="row-left">
-                                <span class="note-driver">${escapeHtml(n.driver)}</span>
-                            </div>
+                            <span class="note-driver">${escapeHtml(n.driver)}</span>
                             <div class="record-contact">
-                                ${n.phone ? `<span class="record-phone">${escapeHtml(n.phone)}</span>` : ''}
-                                ${waBtnHtml}
+                                <span class="record-phone">${n.phone ? escapeHtml(n.phone) : ''}</span>
+                                ${wa}
                             </div>
                         </div>
-                        <!-- 第三行：自動刪除提示 + 修改/刪除掣 -->
                         <div class="note-row-actions">
-                            ${expireHint}
+                            <span class="note-expire">自動刪除：${getExpireHint(n.endDate)}</span>
                             <div class="note-actions">
-                                <button class="note-edit-btn" data-id="${n.id}">修改</button>
-                                <button class="note-delete-btn" data-id="${n.id}">刪除</button>
+                                <button class="note-edit-btn" onclick="enterNoteEditMode('${n.id}')">修改</button>
+                                <button class="note-delete-btn" onclick="queueDeleteNote('${n.id}')">刪除</button>
                             </div>
                         </div>
                     </div>
                 `;
-            });
-
-            notesList.innerHTML = html;
-
-            document.querySelectorAll('.note-delete-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = e.target.getAttribute('data-id');
-                    if (id) queueDeleteNote(id);
-                });
-            });
-
-            document.querySelectorAll('.note-edit-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = e.target.getAttribute('data-id');
-                    if (id) enterNoteEditMode(id);
-                });
-            });
+            }).join('');
         }
 
-        function generateTempId() {
-            return 'temp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        function renderDrivers() {
+            const list = document.getElementById('driversList');
+            if (currentDrivers.length === 0) {
+                list.innerHTML = `<div class="empty-message">暫時未有司機資料。</div>`;
+                return;
+            }
+            list.innerHTML = currentDrivers.map(d => {
+                const typeLabel = d.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
+                return `
+                    <div class="driver-item ${d._pending ? 'pending' : ''}">
+                        <div class="driver-info">
+                            <span class="record-name">${escapeHtml(d.name)}</span>
+                            ${typeLabel}
+                        </div>
+                        <div class="driver-phone">${escapeHtml(d.phone)}</div>
+                        <div class="record-actions">
+                            <button class="edit-btn" onclick="enterDriverEditMode('${d.id}')">修改</button>
+                            <button class="delete-btn" onclick="queueDeleteDriver('${d.id}')">刪除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
-        function queueAdd(data) {
-            const tempId = generateTempId();
-            currentRecords.unshift({
-                id: tempId,
-                name: data.name,
-                phone: data.phone,
-                plate: data.plate || '',
-                weekdays: data.weekdays,
-                shift: data.shift,
-                createdAt: new Date(),
-                _pending: true
-            });
-            pendingChanges.push({ type: 'add', tempId, data });
-            renderRecords(currentRecords);
-            updatePendingIndicator();
+        function getExpireHint(endDate) {
+            if (!endDate) return '-';
+            const end = new Date(endDate + 'T23:59:59');
+            const exp = new Date(end.getTime() + 6 * 86400000);
+            return `${exp.getFullYear()}-${String(exp.getMonth()+1).padStart(2,'0')}-${String(exp.getDate()).padStart(2,'0')}`;
         }
 
-        function queueUpdate(id, data) {
-            const idx = currentRecords.findIndex(r => r.id === id);
-            if (idx === -1) return;
-            const pendingAdd = pendingChanges.find(c => c.type === 'add' && c.tempId === id);
-            if (pendingAdd) {
-                pendingAdd.data = data;
-            } else {
+        function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+        // ==========================================
+        // 3. 隊列操作 (本機暫存)
+        // ==========================================
+        // 司機紀錄
+        window.queueDelete = (id) => {
+            if (!confirm('確定刪除？(需撳儲存)')) return;
+            const pAdd = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === id);
+            if (pAdd !== -1) { pendingChanges.splice(pAdd, 1); currentRecords = currentRecords.filter(r => r.id !== id); }
+            else {
                 pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === id));
-                pendingChanges.push({ type: 'update', id, data });
-            }
-            currentRecords[idx] = { ...currentRecords[idx], ...data, _pending: true };
-            renderRecords(currentRecords);
-            updatePendingIndicator();
-        }
-
-        function queueDelete(id) {
-            if (!confirm('確定要刪除這筆紀錄嗎？（撳「儲存」後才會真正刪除雲端資料）')) return;
-            const pendingAddIdx = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === id);
-            if (pendingAddIdx !== -1) {
-                pendingChanges.splice(pendingAddIdx, 1);
+                pendingChanges.push({ type: 'delete', id });
                 currentRecords = currentRecords.filter(r => r.id !== id);
-                renderRecords(currentRecords);
-                updatePendingIndicator();
-                if (editingId === id) exitEditMode();
-                return;
             }
-            pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === id));
-            pendingChanges.push({ type: 'delete', id });
-            currentRecords = currentRecords.filter(r => r.id !== id);
-            renderRecords(currentRecords);
-            updatePendingIndicator();
-            if (editingId === id) exitEditMode();
-        }
+            renderRecords(); updatePendingIndicator(); if(editingId === id) exitEditMode();
+        };
 
-        function queueAddNote(data) {
-            const tempId = 'note_' + generateTempId();
-            currentNotes.unshift({
-                id: tempId,
-                driver: data.driver,
-                phone: data.phone,
-                startDate: data.startDate,
-                endDate: data.endDate,
-                text: data.text,
-                createdAt: new Date(),
-                _pending: true
-            });
-            pendingNoteChanges.push({ type: 'add', tempId, data });
-            renderNotes(currentNotes);
-            updatePendingIndicator();
-        }
-
-        function queueUpdateNote(id, data) {
-            const idx = currentNotes.findIndex(n => n.id === id);
-            if (idx === -1) return;
-            const pendingAdd = pendingNoteChanges.find(c => c.type === 'add' && c.tempId === id);
-            if (pendingAdd) {
-                pendingAdd.data = data;
-            } else {
-                pendingNoteChanges = pendingNoteChanges.filter(c => !(c.type === 'update' && c.id === id));
-                pendingNoteChanges.push({ type: 'update', id, data });
-            }
-            currentNotes[idx] = { ...currentNotes[idx], ...data, _pending: true };
-            renderNotes(currentNotes);
-            updatePendingIndicator();
-        }
-
-        function queueDeleteNote(id) {
-            if (!confirm('確定要刪除這筆備註嗎？（撳「儲存」後才會真正刪除雲端資料）')) return;
-            const pendingAddIdx = pendingNoteChanges.findIndex(c => c.type === 'add' && c.tempId === id);
-            if (pendingAddIdx !== -1) {
-                pendingNoteChanges.splice(pendingAddIdx, 1);
-                currentNotes = currentNotes.filter(n => n.id !== id);
-                renderNotes(currentNotes);
-                updatePendingIndicator();
-                if (editingNoteId === id) exitNoteEditMode();
-                return;
-            }
-            pendingNoteChanges = pendingNoteChanges.filter(c => !(c.type === 'update' && c.id === id));
-            pendingNoteChanges.push({ type: 'delete', id });
-            currentNotes = currentNotes.filter(n => n.id !== id);
-            renderNotes(currentNotes);
-            updatePendingIndicator();
-            if (editingNoteId === id) exitNoteEditMode();
-        }
-
-        async function commitToCloud() {
-            const total = pendingChanges.length + pendingNoteChanges.length;
-            if (total === 0) {
-                showSaveMsg('冇改動需要儲存', true);
-                return;
-            }
-
-            cloudSaveBtn.disabled = true;
-            const originalText = cloudSaveBtn.textContent;
-            cloudSaveBtn.textContent = '儲存中…';
-
-            let successCount = 0;
-            let failCount = 0;
-            let failMsg = '';
-
-            for (const change of pendingChanges) {
-                try {
-                    if (change.type === 'add') {
-                        await addDoc(recordsCollection, {
-                            name: change.data.name,
-                            phone: change.data.phone,
-                            plate: change.data.plate || '',
-                            weekdays: change.data.weekdays,
-                            shift: change.data.shift,
-                            createdAt: new Date()
-                        });
-                        successCount++;
-                    } else if (change.type === 'update') {
-                        await updateDoc(doc(db, "shiftRecords", change.id), {
-                            name: change.data.name,
-                            phone: change.data.phone,
-                            plate: change.data.plate || '',
-                            weekdays: change.data.weekdays,
-                            shift: change.data.shift
-                        });
-                        successCount++;
-                    } else if (change.type === 'delete') {
-                        await deleteDoc(doc(db, "shiftRecords", change.id));
-                        successCount++;
-                    }
-                } catch (err) {
-                    console.error('紀錄同步失敗:', change, err);
-                    failCount++;
-                    failMsg = err.message;
-                }
-            }
-
-            for (const change of pendingNoteChanges) {
-                try {
-                    if (change.type === 'add') {
-                        await addDoc(notesCollection, {
-                            driver: change.data.driver,
-                            phone: change.data.phone,
-                            startDate: change.data.startDate,
-                            endDate: change.data.endDate,
-                            text: change.data.text,
-                            createdAt: new Date()
-                        });
-                        successCount++;
-                    } else if (change.type === 'update') {
-                        await updateDoc(doc(db, "shiftNotes", change.id), {
-                            driver: change.data.driver,
-                            phone: change.data.phone,
-                            startDate: change.data.startDate,
-                            endDate: change.data.endDate,
-                            text: change.data.text
-                        });
-                        successCount++;
-                    } else if (change.type === 'delete') {
-                        await deleteDoc(doc(db, "shiftNotes", change.id));
-                        successCount++;
-                    }
-                } catch (err) {
-                    console.error('備註同步失敗:', change, err);
-                    failCount++;
-                    failMsg = err.message;
-                }
-            }
-
-            cloudSaveBtn.disabled = false;
-            cloudSaveBtn.textContent = originalText;
-
-            if (failCount === 0) {
-                pendingChanges = [];
-                pendingNoteChanges = [];
-                updatePendingIndicator();
-                showSaveMsg(`儲存成功（${successCount} 項）`, true);
-                currentRecords.forEach(r => delete r._pending);
-                currentNotes.forEach(n => delete n._pending);
-            } else {
-                showSaveMsg(`儲存失敗：${failMsg}`, false);
-            }
-        }
-
-        function enterEditMode(id) {
-            const rec = currentRecords.find(r => r.id === id);
-            if (!rec) return;
+        window.enterEditMode = (id) => {
+            const r = currentRecords.find(x => x.id === id); if(!r) return;
             editingId = id;
-            nameInput.value = rec.name;
-            phoneInput.value = rec.phone;
-            plateInput.value = rec.plate || ''; // 填入車牌
-            selectedWeekdays = new Set(rec.weekdays);
-            document.querySelectorAll('.weekday-btn').forEach(btn => {
-                btn.classList.toggle('active', selectedWeekdays.has(btn.dataset.day));
-            });
-            selectedShift = rec.shift || null;
-            document.querySelectorAll('.shift-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.shift === selectedShift);
-            });
-            formTitle.textContent = '修改紀錄';
-            saveBtn.textContent = '加入修改';
-            cancelEditBtn.style.display = 'inline-block';
+            nameInput.value = r.name; phoneInput.value = r.phone; plateInput.value = r.plate || '';
+            selectedWeekdays = new Set(r.weekdays);
+            document.querySelectorAll('.weekday-btn').forEach(b => b.classList.toggle('active', selectedWeekdays.has(b.dataset.day)));
+            selectedShift = r.shift;
+            document.querySelectorAll('.shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === selectedShift));
+            selectedType = r.type;
+            document.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === selectedType));
+            formTitle.textContent = '修改司機紀錄'; saveBtn.textContent = '加入修改'; cancelEditBtn.style.display = 'inline-block';
             form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            nameInput.focus();
-        }
+        };
 
         function exitEditMode() {
             editingId = null;
-            nameInput.value = '';
-            phoneInput.value = '';
-            plateInput.value = ''; // 清空車牌
-            selectedWeekdays.clear();
-            document.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
-            selectedShift = null;
-            document.querySelectorAll('.shift-btn').forEach(b => b.classList.remove('active'));
-            formTitle.textContent = '新增紀錄';
-            saveBtn.textContent = '加入新增';
-            cancelEditBtn.style.display = 'none';
+            form.reset();
+            selectedWeekdays.clear(); selectedShift = null; selectedType = null;
+            document.querySelectorAll('.weekday-btn, .shift-btn, .type-btn').forEach(b => b.classList.remove('active'));
+            formTitle.textContent = '新增司機紀錄'; saveBtn.textContent = '加入新增'; cancelEditBtn.style.display = 'none';
         }
 
-        function enterNoteEditMode(id) {
-            const n = currentNotes.find(x => x.id === id);
-            if (!n) return;
+        // 備註
+        window.queueDeleteNote = (id) => {
+            if (!confirm('確定刪除？(需撳儲存)')) return;
+            const pAdd = pendingNoteChanges.findIndex(c => c.type === 'add' && c.tempId === id);
+            if (pAdd !== -1) { pendingNoteChanges.splice(pAdd, 1); currentNotes = currentNotes.filter(n => n.id !== id); }
+            else {
+                pendingNoteChanges = pendingNoteChanges.filter(c => !(c.type === 'update' && c.id === id));
+                pendingNoteChanges.push({ type: 'delete', id });
+                currentNotes = currentNotes.filter(n => n.id !== id);
+            }
+            renderNotes(); updatePendingIndicator(); if(editingNoteId === id) exitNoteEditMode();
+        };
+
+        window.enterNoteEditMode = (id) => {
+            const n = currentNotes.find(x => x.id === id); if(!n) return;
             editingNoteId = id;
-            noteDriver.value = n.driver;
-            notePhone.value = n.phone || '';
-            noteStart.value = n.startDate;
-            noteEnd.value = n.endDate;
-            noteText.value = n.text;
-            noteTitle.textContent = '修改備註';
-            addNoteBtn.textContent = '加入修改';
-            noteCancelBtn.style.display = 'inline-block';
+            noteStart.value = n.startDate; noteEnd.value = n.endDate;
+            noteDriver.value = n.driver; notePhone.value = n.phone; noteText.value = n.text;
+            noteTitle.textContent = '修改備註'; addNoteBtn.textContent = '加入修改'; noteCancelBtn.style.display = 'inline-block';
             noteForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            noteDriver.focus();
-        }
+        };
 
         function exitNoteEditMode() {
             editingNoteId = null;
-            noteDriver.value = '';
-            notePhone.value = '';
-            noteStart.value = '';
-            noteEnd.value = '';
-            noteText.value = '';
-            noteTitle.textContent = '新增備註';
-            addNoteBtn.textContent = '加入備註';
-            noteCancelBtn.style.display = 'none';
+            noteForm.reset();
+            noteTitle.textContent = '新增備註'; addNoteBtn.textContent = '加入備註'; noteCancelBtn.style.display = 'none';
         }
 
-        function initWeekdayButtons() {
-            const container = document.getElementById('weekdayButtons');
-            container.innerHTML = '';
-            WEEKDAY_ORDER.forEach(day => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'weekday-btn';
-                btn.dataset.day = day;
-                btn.textContent = WEEKDAY_LABEL[day];
-                btn.addEventListener('click', () => {
-                    if (selectedWeekdays.has(day)) {
-                        selectedWeekdays.delete(day);
-                        btn.classList.remove('active');
-                    } else {
-                        selectedWeekdays.add(day);
-                        btn.classList.add('active');
-                    }
-                });
-                container.appendChild(btn);
-            });
-        }
-
-        function initShiftButtons() {
-            const container = document.getElementById('shiftButtons');
-            container.innerHTML = '';
-            ['morning', 'night'].forEach(shift => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'shift-btn';
-                btn.dataset.shift = shift;
-                btn.textContent = SHIFT_LABEL[shift];
-                btn.addEventListener('click', () => {
-                    if (selectedShift === shift) {
-                        selectedShift = null;
-                        btn.classList.remove('active');
-                    } else {
-                        selectedShift = shift;
-                        document.querySelectorAll('.shift-btn').forEach(b => b.classList.remove('active'));
-                        btn.classList.add('active');
-                    }
-                });
-                container.appendChild(btn);
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            initWeekdayButtons();
-            initShiftButtons();
-            switchTab('records');
-
-            tabRecords.addEventListener('click', () => switchTab('records'));
-            tabNotes.addEventListener('click', () => switchTab('notes'));
-
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const name = nameInput.value.trim();
-                const phone = phoneInput.value.trim();
-                const plate = plateInput.value.trim(); // 攞車牌
-                const weekdaysArray = Array.from(selectedWeekdays);
-
-                if (!name || !phone) { alert('請填寫人名、電話。'); return; }
-                if (weekdaysArray.length === 0) { alert('請最少揀選一日返工日子。'); return; }
-                if (!selectedShift) { alert('請揀選更別（早更或夜更）。'); return; }
-                if (phone.length < 8) { alert('電話號碼似乎太短，請確認。'); return; }
-
-                const data = { name, phone, plate, weekdays: weekdaysArray, shift: selectedShift };
-
-                if (editingId) {
-                    queueUpdate(editingId, data);
-                    showSaveMsg('已加入修改', true);
-                } else {
-                    queueAdd(data);
-                    showSaveMsg('已加入新增', true);
-                }
-                exitEditMode();
-            });
-
-            cancelEditBtn.addEventListener('click', () => {
-                if (confirm('取消修改？填寫嘅內容會清空。')) exitEditMode();
-            });
-
-            noteForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const driver = noteDriver.value.trim();
-                const phone = notePhone.value.trim();
-                const startDate = noteStart.value;
-                const endDate = noteEnd.value;
-                const text = noteText.value.trim();
-
-                if (!driver) { alert('請填寫司機姓名。'); return; }
-                if (!phone) { alert('請填寫電話號碼。'); return; }
-                if (!startDate) { alert('請揀選開始日期。'); return; }
-                if (!endDate) { alert('請揀選結束日期。'); return; }
-                if (endDate < startDate) { alert('結束日期唔可以早過開始日期。'); return; }
-                if (!text) { alert('請填寫備註事情。'); return; }
-
-                const data = { driver, phone, startDate, endDate, text };
-
-                if (editingNoteId) {
-                    queueUpdateNote(editingNoteId, data);
-                    showSaveMsg('已加入備註修改', true);
-                } else {
-                    queueAddNote(data);
-                    showSaveMsg('已加入備註', true);
-                }
-                exitNoteEditMode();
-            });
-
-            noteCancelBtn.addEventListener('click', () => {
-                if (confirm('取消修改？填寫嘅內容會清空。')) exitNoteEditMode();
-            });
-
-            cloudSaveBtn.addEventListener('click', commitToCloud);
-
-            if (deleteAllBtn) {
-                deleteAllBtn.addEventListener('click', () => {
-                    if (currentRecords.length === 0) {
-                        showSaveMsg('冇紀錄可以刪除', true);
-                        return;
-                    }
-                    if (!confirm('確定要刪除所有替更紀錄嗎？（撳「儲存」後才會真正刪除雲端資料）')) return;
-                    currentRecords.forEach(r => {
-                        if (!pendingChanges.find(c => c.type === 'delete' && c.id === r.id)) {
-                            const addIdx = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === r.id);
-                            if (addIdx !== -1) pendingChanges.splice(addIdx, 1);
-                            else pendingChanges.push({ type: 'delete', id: r.id });
-                        }
-                    });
-                    pendingChanges = pendingChanges.filter(c => c.type !== 'update');
-                    currentRecords = [];
-                    renderRecords(currentRecords);
-                    updatePendingIndicator();
-                    exitEditMode();
-                    showSaveMsg('已加入全部刪除', true);
-                });
+        // 司機資料
+        window.queueDeleteDriver = (id) => {
+            if (!confirm('確定刪除？(需撳儲存)')) return;
+            const pAdd = pendingDriverChanges.findIndex(c => c.type === 'add' && c.tempId === id);
+            if (pAdd !== -1) { pendingDriverChanges.splice(pAdd, 1); currentDrivers = currentDrivers.filter(d => d.id !== id); }
+            else {
+                pendingDriverChanges = pendingDriverChanges.filter(c => !(c.type === 'update' && c.id === id));
+                pendingDriverChanges.push({ type: 'delete', id });
+                currentDrivers = currentDrivers.filter(d => d.id !== id);
             }
+            renderDrivers(); updatePendingIndicator(); if(editingDriverId === id) exitDriverEditMode();
+        };
 
+        window.enterDriverEditMode = (id) => {
+            const d = currentDrivers.find(x => x.id === id); if(!d) return;
+            editingDriverId = id;
+            dName.value = d.name; dPhone.value = d.phone;
+            document.querySelectorAll('.d-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === d.type));
+            driverTitle.textContent = '修改司機資料'; addDriverBtn.textContent = '加入修改'; driverCancelBtn.style.display = 'inline-block';
+            driverForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        function exitDriverEditMode() {
+            editingDriverId = null;
+            driverForm.reset();
+            document.querySelectorAll('.d-type-btn').forEach(b => b.classList.remove('active'));
+            driverTitle.textContent = '新增司機資料'; addDriverBtn.textContent = '加入資料'; driverCancelBtn.style.display = 'none';
+        }
+
+        // ==========================================
+        // 4. 初始化 & 事件綁定
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // 建立按鈕
+            const wContainer = document.getElementById('weekdayButtons');
+            WEEKDAY_ORDER.forEach(d => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'weekday-btn'; b.dataset.day = d; b.textContent = WEEKDAY_LABEL[d];
+                b.onclick = () => { if(selectedWeekdays.has(d)){selectedWeekdays.delete(d); b.classList.remove('active');} else {selectedWeekdays.add(d); b.classList.add('active');} };
+                wContainer.appendChild(b);
+            });
+
+            const sContainer = document.getElementById('shiftButtons');
+            ['morning', 'night'].forEach(s => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_LABEL[s];
+                b.onclick = () => { selectedShift = s; document.querySelectorAll('.shift-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
+                sContainer.appendChild(b);
+            });
+
+            const tContainer = document.getElementById('typeButtons');
+            ['正更', '替更'].forEach(t => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'type-btn'; b.dataset.type = t; b.textContent = t;
+                b.onclick = () => { selectedType = t; document.querySelectorAll('.type-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
+                tContainer.appendChild(b);
+            });
+
+            const dtContainer = document.getElementById('dTypeButtons');
+            ['正更', '替更'].forEach(t => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'd-type-btn'; b.dataset.type = t; b.textContent = t;
+                b.onclick = () => { document.querySelectorAll('.d-type-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
+                dtContainer.appendChild(b);
+            });
+
+            // 綁定 Autocomplete
+            setupAutocomplete(nameInput, phoneInput);
+            setupAutocomplete(noteDriver, notePhone);
+
+            // 監聽 Firestore
             listenToRecords();
             listenToNotes();
+            listenToDrivers();
+
+            // 表單提交
+            form.onsubmit = (e) => {
+                e.preventDefault();
+                if (!nameInput.value.trim() || !phoneInput.value.trim() || selectedWeekdays.size === 0 || !selectedShift || !selectedType) { alert('請填寫完整資料及選擇更別/正替更'); return; }
+                const data = { name: nameInput.value.trim(), phone: phoneInput.value.trim(), plate: plateInput.value.trim(), weekdays: Array.from(selectedWeekdays), shift: selectedShift, type: selectedType };
+                if (editingId) {
+                    const idx = currentRecords.findIndex(r => r.id === editingId);
+                    const pAdd = pendingChanges.find(c => c.type === 'add' && c.tempId === editingId);
+                    if(pAdd) pAdd.data = data;
+                    else { pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === editingId)); pendingChanges.push({type:'update', id: editingId, data}); }
+                    currentRecords[idx] = { ...currentRecords[idx], ...data, _pending: true };
+                } else {
+                    const tempId = 'temp_' + Date.now();
+                    currentRecords.unshift({ id: tempId, ...data, _pending: true, createdAt: new Date() });
+                    pendingChanges.push({ type: 'add', tempId, data });
+                }
+                renderRecords(); updatePendingIndicator(); exitEditMode(); showSaveMsg('已加入暫存', true);
+            };
+
+            noteForm.onsubmit = (e) => {
+                e.preventDefault();
+                if (!noteStart.value || !noteEnd.value || !noteDriver.value.trim() || !notePhone.value.trim() || !noteText.value.trim()) { alert('請填寫完整備註資料'); return; }
+                const data = { startDate: noteStart.value, endDate: noteEnd.value, driver: noteDriver.value.trim(), phone: notePhone.value.trim(), text: noteText.value.trim() };
+                if (editingNoteId) {
+                    const idx = currentNotes.findIndex(n => n.id === editingNoteId);
+                    const pAdd = pendingNoteChanges.find(c => c.type === 'add' && c.tempId === editingNoteId);
+                    if(pAdd) pAdd.data = data;
+                    else { pendingNoteChanges = pendingNoteChanges.filter(c => !(c.type === 'update' && c.id === editingNoteId)); pendingNoteChanges.push({type:'update', id: editingNoteId, data}); }
+                    currentNotes[idx] = { ...currentNotes[idx], ...data, _pending: true };
+                } else {
+                    const tempId = 'note_' + Date.now();
+                    currentNotes.unshift({ id: tempId, ...data, _pending: true, createdAt: new Date() });
+                    pendingNoteChanges.push({ type: 'add', tempId, data });
+                }
+                renderNotes(); updatePendingIndicator(); exitNoteEditMode(); showSaveMsg('已加入暫存', true);
+            };
+
+            driverForm.onsubmit = (e) => {
+                e.preventDefault();
+                const typeBtn = document.querySelector('.d-type-btn.active');
+                if (!dName.value.trim() || !dPhone.value.trim() || !typeBtn) { alert('請填寫姓名、電話並選擇正/替更'); return; }
+                const data = { name: dName.value.trim(), phone: dPhone.value.trim(), type: typeBtn.dataset.type };
+                if (editingDriverId) {
+                    const idx = currentDrivers.findIndex(d => d.id === editingDriverId);
+                    const pAdd = pendingDriverChanges.find(c => c.type === 'add' && c.tempId === editingDriverId);
+                    if(pAdd) pAdd.data = data;
+                    else { pendingDriverChanges = pendingDriverChanges.filter(c => !(c.type === 'update' && c.id === editingDriverId)); pendingDriverChanges.push({type:'update', id: editingDriverId, data}); }
+                    currentDrivers[idx] = { ...currentDrivers[idx], ...data, _pending: true };
+                } else {
+                    const tempId = 'd_' + Date.now();
+                    currentDrivers.unshift({ id: tempId, ...data, _pending: true, createdAt: new Date() });
+                    pendingDriverChanges.push({ type: 'add', tempId, data });
+                }
+                renderDrivers(); updatePendingIndicator(); exitDriverEditMode(); showSaveMsg('已加入暫存', true);
+            };
+
+            // 取消修改
+            cancelEditBtn.onclick = () => exitEditMode();
+            noteCancelBtn.onclick = () => exitNoteEditMode();
+            driverCancelBtn.onclick = () => exitDriverEditMode();
+
+            // 分頁切換
+            tabRecords.onclick = () => switchTab('records');
+            tabNotes.onclick = () => switchTab('notes');
+            tabDrivers.onclick = () => switchTab('drivers');
+
+            // 儲存上雲端
+            cloudSaveBtn.onclick = async () => {
+                const total = pendingChanges.length + pendingNoteChanges.length + pendingDriverChanges.length;
+                if (total === 0) { showSaveMsg('冇改動需要儲存', true); return; }
+
+                cloudSaveBtn.disabled = true; cloudSaveBtn.textContent = '儲存中…';
+                let sCount = 0, fCount = 0, fMsg = '';
+
+                // 逐個處理隊列
+                for (const change of pendingDriverChanges) {
+                    try {
+                        if (change.type === 'add') await addDoc(driversCollection, { ...change.data, createdAt: new Date() });
+                        else if (change.type === 'update') await updateDoc(doc(db, "driversData", change.id), change.data);
+                        else if (change.type === 'delete') await deleteDoc(doc(db, "driversData", change.id));
+                        sCount++;
+                    } catch (e) { fCount++; fMsg = e.message; }
+                }
+                for (const change of pendingChanges) {
+                    try {
+                        if (change.type === 'add') await addDoc(recordsCollection, { ...change.data, createdAt: new Date() });
+                        else if (change.type === 'update') await updateDoc(doc(db, "shiftRecords", change.id), change.data);
+                        else if (change.type === 'delete') await deleteDoc(doc(db, "shiftRecords", change.id));
+                        sCount++;
+                    } catch (e) { fCount++; fMsg = e.message; }
+                }
+                for (const change of pendingNoteChanges) {
+                    try {
+                        if (change.type === 'add') await addDoc(notesCollection, { ...change.data, createdAt: new Date() });
+                        else if (change.type === 'update') await updateDoc(doc(db, "shiftNotes", change.id), change.data);
+                        else if (change.type === 'delete') await deleteDoc(doc(db, "shiftNotes", change.id));
+                        sCount++;
+                    } catch (e) { fCount++; fMsg = e.message; }
+                }
+
+                cloudSaveBtn.disabled = false; updatePendingIndicator();
+
+                if (fCount === 0) {
+                    pendingChanges = []; pendingNoteChanges = []; pendingDriverChanges = [];
+                    updatePendingIndicator();
+                    showSaveMsg(`儲存成功 (${sCount} 項)`, true);
+                    currentRecords.forEach(r => delete r._pending);
+                    currentNotes.forEach(n => delete n._pending);
+                    currentDrivers.forEach(d => delete d._pending);
+                    renderRecords(); renderNotes(); renderDrivers();
+                } else {
+                    showSaveMsg(`儲存失敗 (${fCount} 項): ${fMsg}`, false);
+                }
+            };
         });
     </script>
     <style>
@@ -824,32 +653,33 @@
         .form-card { background: #f9fafb; border-radius: 10px; padding: clamp(14px, 3.5vw, 20px) clamp(12px, 3vw, 16px); margin-bottom: clamp(20px, 5vw, 28px); border: 1px solid #e5e7eb; }
         .form-card h2 { font-size: clamp(0.9rem, 3.2vw, 1rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
         
-        /* 🛠️ 強制第一行兩格並排並撐滿 */
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
         
         .input-group { display: flex; flex-direction: column; gap: 5px; }
         .input-group label { font-size: clamp(0.75rem, 2.6vw, 0.82rem); font-weight: 600; color: #374151; margin-left: 2px; }
-        .input-group input, .input-group textarea { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; }
-        .input-group input:focus, .input-group textarea:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
-        .input-group textarea { resize: vertical; min-height: 44px; }
+        .input-group input { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; }
+        .input-group input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
+
+        /* Autocomplete 下拉選單 */
+        .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; }
+        .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
+        .autocomplete-item:hover { background: #f9fafb; }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .ac-phone { font-size: 0.8rem; color: #6b7280; }
 
         .weekday-selector { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 2px; }
         .weekday-btn { padding: 10px 2px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.8rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
-        .weekday-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
         .weekday-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
 
-        .shift-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 2px; }
-        .shift-btn { padding: 10px 8px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.82rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
-        .shift-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
-        .shift-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
+        .shift-selector, .type-selector, .d-type-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 2px; }
+        .shift-btn, .type-btn, .d-type-btn { padding: 10px 8px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.82rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
+        .shift-btn.active, .type-btn.active, .d-type-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
 
-        /* 紀錄表單底部按鈕 (靠左排埋) */
         .record-form-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
 
         .btn { border: none; padding: 11px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; cursor: pointer; transition: 0.12s; background: white; color: #374151; border: 1px solid #d1d5db; touch-action: manipulation; }
         .btn-primary { background: #1f2937; color: white; border: none; }
         .btn-primary:hover { background: #111827; }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn-outline { background: transparent; }
         .btn-outline:hover { background: #f3f4f6; }
         .btn-danger { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; }
@@ -857,31 +687,32 @@
 
         .records-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
         .records-header h2 { font-size: clamp(0.95rem, 3.5vw, 1.1rem); font-weight: 600; color: #111827; }
-        .loading { font-size: 0.8rem; color: #4b5563; background: #f3f4f6; padding: 5px 12px; border-radius: 20px; }
-        .error { color: #b91c1c; background: #fef2f2; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; }
 
-        .records-list { display: flex; flex-direction: column; gap: 7px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
+        .records-list, .driver-list { display: flex; flex-direction: column; gap: 7px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
 
-        .record-item { background: white; border-radius: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; }
-        .record-item.pending { border-color: #f59e0b; background: #fffbeb; }
+        .record-item, .note-item, .driver-item { background: white; border-radius: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; }
+        .driver-item { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+        .record-item.pending, .note-item.pending, .driver-item.pending { border-color: #f59e0b; background: #fffbeb; }
 
-        .record-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .record-row-top, .note-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
         .row-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-        .record-name { font-weight: 600; font-size: clamp(0.92rem, 3.4vw, 1rem); color: #111827; word-break: break-word; }
+        .record-name { font-weight: 600; font-size: clamp(0.92rem, 3.4vw, 1rem); color: #111827; }
         .record-contact { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .record-phone { color: #4b5563; font-size: clamp(0.8rem, 2.9vw, 0.88rem); white-space: nowrap; }
 
-        .record-shift { font-weight: 500; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+        .record-shift { font-weight: 500; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
         .record-shift.morning { background: #fef3c7; color: #92400e; }
         .record-shift.night { background: #e5e7eb; color: #374151; }
 
-        /* 車牌標籤 */
-        .record-plate { font-weight: 600; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 8px; border-radius: 4px; background: #111827; color: #facc15; white-space: nowrap; flex-shrink: 0; letter-spacing: 1px; }
+        .type-tag { font-weight: 600; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+        .type-tag.regular { background: #e0e7ff; color: #4338ca; }
+        .type-tag.substitute { background: #fce7f3; color: #be185d; }
 
-        .record-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .record-plate { font-weight: 600; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 8px; border-radius: 4px; background: #111827; color: #facc15; white-space: nowrap; letter-spacing: 1px; }
+
+        .record-row-bottom, .note-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 
         .wa-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; background: #e8f5e9; color: #2e7d32; text-decoration: none; border: 1px solid #a5d6a7; transition: 0.12s; flex-shrink: 0; }
-        .wa-btn:hover { background: #c8e6c9; }
         .wa-btn svg { display: block; width: 15px; height: 15px; }
 
         .days-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
@@ -889,49 +720,26 @@
         .day-tag.empty { background: #f3f4f6; color: #9ca3af; font-weight: 400; padding: 0 8px; }
 
         .record-actions { display: flex; gap: 5px; flex-shrink: 0; }
-        .edit-btn { background: transparent; border: 1px solid #cbd5e1; color: #374151; padding: 5px 11px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; transition: 0.12s; touch-action: manipulation; }
+        .edit-btn { background: transparent; border: 1px solid #cbd5e1; color: #374151; padding: 5px 11px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; }
         .edit-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
-        .delete-btn { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 5px 11px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; transition: 0.12s; touch-action: manipulation; }
+        .delete-btn { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 5px 11px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; }
         .delete-btn:hover { background: #fef2f2; }
 
         .empty-message { text-align: center; padding: 32px 16px; color: #9ca3af; background: #f9fafb; border-radius: 10px; border: 1px dashed #d1d5db; font-size: 0.9rem; }
 
-        /* ===== 新增備註格：強制三行並排 ===== */
-        .note-form-card { background: #f9fafb; border-radius: 10px; padding: clamp(14px, 3.5vw, 20px) clamp(12px, 3vw, 16px); margin-bottom: 16px; border: 1px solid #e5e7eb; }
-        .note-form-card h3 { font-size: clamp(0.88rem, 3vw, 0.95rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
-
-        /* 第一行：開始日期 + 結束日期 (強制兩格) */
-        .note-line-1 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        /* 第二行：司機姓名 + 電話號碼 (強制兩格) */
-        .note-line-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        /* 第三行：備註事情 + 加入掣 */
+        /* ===== 備註表單 ===== */
+        .note-line-1, .note-line-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         .note-line-3 { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; }
         .note-line-3 .input-group { flex: 1; }
-
-        /* 🛠️ 只有備註表單入面嘅 input 先縮細，唔會影響「新增紀錄」 */
         .note-form-card .input-group input { padding: 9px 8px; font-size: 0.85rem; }
 
-        /* ===== 備註紀錄列表 ===== */
-        .note-item { background: white; border-radius: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; margin-bottom: 7px; }
-        .note-item.pending { border-color: #f59e0b; background: #fffbeb; }
-        
-        /* 第一行：左邊時間 (大字)，右邊備註事情 */
-        .note-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        /* ===== 備註列表 ===== */
         .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
         .note-text { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #b45309; text-align: right; word-break: break-word; }
-
-        /* 第二行：左邊司機名，右邊電話 + WhatsApp */
-        .note-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
         .note-driver { font-weight: 500; font-size: clamp(0.8rem, 2.9vw, 0.88rem); color: #4b5563; }
-
-        /* 第三行：自動刪除提示 + 掣 */
         .note-row-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 2px; padding-top: 6px; border-top: 1px dashed #f3f4f6;}
         .note-expire { font-size: clamp(0.65rem, 2.3vw, 0.72rem); color: #9ca3af; }
         .note-actions { display: flex; gap: 5px; flex-shrink: 0; }
-        .note-edit-btn { background: transparent; border: 1px solid #cbd5e1; color: #374151; padding: 4px 10px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; transition: 0.12s; touch-action: manipulation; }
-        .note-edit-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
-        .note-delete-btn { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 4px 10px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; transition: 0.12s; touch-action: manipulation; }
-        .note-delete-btn:hover { background: #fef2f2; }
 
         footer { margin-top: 18px; font-size: 0.72rem; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 14px; }
     </style>
@@ -940,8 +748,8 @@
     <div class="container">
         <div class="header-row">
             <div class="title-wrap">
-                <h1>的士替更編更</h1>
-                <span class="version" id="version">V1.1</span>
+                <h1>的士編更系統</h1>
+                <span class="version" id="version">V1.2</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -952,22 +760,24 @@
             </div>
         </div>
         <div class="subhead">
-            記錄每星期替更師傅：人名、電話、逢星期幾返工（可揀多日）、早/夜更。所有改動會先暫存，撳右上角「儲存」才會寫上雲端。
+            管理司機資料、排更同備註。所有改動會先暫存，撳右上角「儲存」才會寫上雲端。
         </div>
 
         <div class="tabs">
-            <button type="button" id="tabRecords" class="tab-btn active">替更紀錄</button>
+            <button type="button" id="tabRecords" class="tab-btn active">司機紀錄</button>
             <button type="button" id="tabNotes" class="tab-btn">備註</button>
+            <button type="button" id="tabDrivers" class="tab-btn">司機資料</button>
         </div>
 
+        <!-- 分頁 1：司機紀錄 -->
         <div id="panelRecords">
             <div class="form-card">
-                <h2 id="formTitle">新增紀錄</h2>
+                <h2 id="formTitle">新增司機紀錄</h2>
                 <form id="recordForm">
                     <div class="form-grid">
                         <div class="input-group">
-                            <label>人名</label>
-                            <input type="text" id="name" placeholder="陳大文" required>
+                            <label>司機姓名</label>
+                            <input type="text" id="name" placeholder="陳大文" required autocomplete="off">
                         </div>
                         <div class="input-group">
                             <label>電話號碼</label>
@@ -985,31 +795,31 @@
                             <label>車牌（選填）</label>
                             <input type="text" id="plate" placeholder="AB 1234">
                         </div>
+                        <div class="input-group" style="grid-column: 1 / -1;">
+                            <label>類型</label>
+                            <div id="typeButtons" class="type-selector"></div>
+                        </div>
                     </div>
-                    <!-- 撳掣靠左排埋 -->
                     <div class="record-form-actions">
                         <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
                         <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">取消修改</button>
-                        <button type="button" id="deleteAllBtn" class="btn btn-danger" style="margin-left: 8px;">刪除全部</button>
                     </div>
                 </form>
             </div>
 
             <div class="records-header">
-                <h2>替更紀錄</h2>
-                <div id="loading" class="loading" style="display: none;">同步中...</div>
-                <div id="errorMessage" class="error"></div>
+                <h2>司機紀錄</h2>
             </div>
             <div id="recordsList" class="records-list">
                 <div class="empty-message">載入中...</div>
             </div>
         </div>
 
+        <!-- 分頁 2：備註 -->
         <div id="panelNotes" style="display: none;">
-            <div class="note-form-card">
+            <div class="note-form-card form-card">
                 <h3 id="noteTitle">新增備註</h3>
                 <form id="noteForm">
-                    <!-- 第一行：開始日期 + 結束日期 -->
                     <div class="note-line-1">
                         <div class="input-group">
                             <label>開始日期</label>
@@ -1020,18 +830,16 @@
                             <input type="date" id="noteEnd" required>
                         </div>
                     </div>
-                    <!-- 第二行：司機姓名 + 電話號碼 -->
                     <div class="note-line-2">
                         <div class="input-group">
-                            <label>司機姓名</label>
-                            <input type="text" id="noteDriver" placeholder="A司機" required>
+                            <label>司機姓名 (可搜尋)</label>
+                            <input type="text" id="noteDriver" placeholder="A司機" required autocomplete="off">
                         </div>
                         <div class="input-group">
                             <label>電話號碼</label>
                             <input type="tel" id="notePhone" placeholder="91234567" required>
                         </div>
                     </div>
-                    <!-- 第三行：備註事情 + 加入掣 -->
                     <div class="note-line-3">
                         <div class="input-group">
                             <label>備註事情</label>
@@ -1043,7 +851,41 @@
                 </form>
             </div>
 
-            <div id="notesList">
+            <div id="notesList" class="records-list">
+                <div class="empty-message">載入中...</div>
+            </div>
+        </div>
+
+        <!-- 分頁 3：司機資料 -->
+        <div id="panelDrivers" style="display: none;">
+            <div class="form-card">
+                <h3 id="driverTitle">新增司機資料</h3>
+                <form id="driverForm">
+                    <div class="form-grid">
+                        <div class="input-group">
+                            <label>司機姓名</label>
+                            <input type="text" id="dName" placeholder="陳大文" required>
+                        </div>
+                        <div class="input-group">
+                            <label>電話號碼</label>
+                            <input type="tel" id="dPhone" placeholder="91234567" required>
+                        </div>
+                        <div class="input-group" style="grid-column: 1 / -1;">
+                            <label>類型</label>
+                            <div id="dTypeButtons" class="d-type-selector"></div>
+                        </div>
+                    </div>
+                    <div class="record-form-actions">
+                        <button type="submit" id="addDriverBtn" class="btn btn-primary">加入資料</button>
+                        <button type="button" id="driverCancelBtn" class="btn btn-outline" style="display: none;">取消修改</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="records-header">
+                <h2>司機資料庫</h2>
+            </div>
+            <div id="driversList" class="driver-list">
                 <div class="empty-message">載入中...</div>
             </div>
         </div>
