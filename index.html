@@ -27,12 +27,10 @@
         const analytics = getAnalytics(app);
         const db = getFirestore(app);
         
-        // 三個 Collections
-        const recordsCollection = collection(db, "shiftRecords"); // 司機紀錄
-        const notesCollection = collection(db, "shiftNotes");     // 備註
-        const driversCollection = collection(db, "driversData");  // 司機資料
+        const recordsCollection = collection(db, "shiftRecords");
+        const notesCollection = collection(db, "shiftNotes");
+        const driversCollection = collection(db, "driversData");
 
-        // 主 UI
         const tabRecords = document.getElementById('tabRecords');
         const tabNotes = document.getElementById('tabNotes');
         const tabDrivers = document.getElementById('tabDrivers');
@@ -45,20 +43,17 @@
         const cloudSaveBtn = document.getElementById('cloudSaveBtn');
         const saveStatusMsg = document.getElementById('saveStatusMsg');
 
-        const APP_VERSION = 'V1.3'; // 版本更新
+        const APP_VERSION = 'V1.4'; 
         versionEl.textContent = APP_VERSION;
 
-        // 全局數據
         let currentRecords = [];
         let currentNotes = [];
         let currentDrivers = [];
 
-        // 待同步隊列
         let pendingChanges = [];
         let pendingNoteChanges = [];
         let pendingDriverChanges = [];
 
-        // 編輯狀態
         let editingId = null;
         let editingNoteId = null;
         let editingDriverId = null;
@@ -73,7 +68,7 @@
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         let selectedWeekdays = new Set();
         let selectedShift = null;
-        let selectedType = null; // 正更 / 替更
+        let selectedType = null; 
 
         // 備註表單
         const noteForm = document.getElementById('noteForm');
@@ -93,7 +88,7 @@
         const driverTitle = document.getElementById('driverTitle');
         const addDriverBtn = document.getElementById('addDriverBtn');
         const driverCancelBtn = document.getElementById('driverCancelBtn');
-        let dSelectedShift = null; // 司機資料專用早/夜更
+        let dSelectedShift = null; 
 
         const WEEKDAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
         const WEEKDAY_LABEL = { 'mon': '一', 'tue': '二', 'wed': '三', 'thu': '四', 'fri': '五', 'sat': '六', 'sun': '日' };
@@ -148,9 +143,6 @@
             }
         }
 
-        // ==========================================
-        // Autocomplete 自動填入功能
-        // ==========================================
         function setupAutocomplete(inputEl, phoneEl) {
             const dropdown = document.createElement('div');
             dropdown.className = 'autocomplete-dropdown';
@@ -190,9 +182,6 @@
             });
         }
 
-        // ==========================================
-        // 1. 監聽數據
-        // ==========================================
         function listenToRecords() {
             const q = query(recordsCollection, orderBy("createdAt", "desc"));
             onSnapshot(q, (snapshot) => {
@@ -200,7 +189,11 @@
                 currentRecords = [];
                 snapshot.forEach(docSnap => {
                     const d = docSnap.data();
-                    currentRecords.push({ id: docSnap.id, ...d, weekdays: Array.isArray(d.weekdays) ? d.weekdays : (d.weekday ? [d.weekday] : []) });
+                    currentRecords.push({ 
+                        id: docSnap.id, ...d, 
+                        weekdays: Array.isArray(d.weekdays) ? d.weekdays : (d.weekday ? [d.weekday] : []),
+                        isStarred: d.isStarred || false // 確保有預設值
+                    });
                 });
                 renderRecords();
                 setStatus('connected');
@@ -233,7 +226,7 @@
         }
 
         // ==========================================
-        // 2. 渲染數據
+        // 排序與渲染：星號優先 -> 正更先 -> 名字 A-Z
         // ==========================================
         function renderRecords() {
             const list = document.getElementById('recordsList');
@@ -241,7 +234,24 @@
                 list.innerHTML = `<div class="empty-message">暫時未有司機紀錄。</div>`;
                 return;
             }
-            list.innerHTML = currentRecords.map(rec => {
+
+            // 自訂排序邏輯
+            const sortedRecords = [...currentRecords].sort((a, b) => {
+                // 1. 星號優先 (true 排前)
+                if (a.isStarred && !b.isStarred) return -1;
+                if (!a.isStarred && b.isStarred) return 1;
+                
+                // 2. 類型：正更排前，替更排後
+                if (a.type === '正更' && b.type !== '正更') return -1;
+                if (a.type !== '正更' && b.type === '正更') return 1;
+                
+                // 3. 名字 A-Z
+                const nameA = (a.name || '').toLowerCase();
+                const nameB = (b.name || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'zh-HK');
+            });
+
+            list.innerHTML = sortedRecords.map(rec => {
                 const days = WEEKDAY_ORDER.filter(d => rec.weekdays.includes(d)).map(d => `<span class="day-tag">${WEEKDAY_LABEL[d]}</span>`).join('');
                 const shift = SHIFT_LABEL[rec.shift] || rec.shift;
                 const typeLabel = rec.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
@@ -254,10 +264,16 @@
                     wa = `<a class="wa-btn" href="https://wa.me/${n}" target="_blank">${WA_ICON}</a>`;
                 }
 
+                // 星星按鈕 (空心 / 實心)
+                const starBtn = rec.isStarred 
+                    ? `<button class="star-btn starred" onclick="toggleStar('${rec.id}')" title="取消置頂">★</button>` 
+                    : `<button class="star-btn" onclick="toggleStar('${rec.id}')" title="置頂">☆</button>`;
+
                 return `
                     <div class="record-item ${rec._pending ? 'pending' : ''}" data-id="${rec.id}">
                         <div class="record-row-top">
                             <div class="row-left">
+                                ${starBtn}
                                 <span class="record-name">${escapeHtml(rec.name)}</span>
                                 ${typeLabel}
                                 <span class="record-shift ${rec.shift}">${shift}</span>
@@ -356,8 +372,32 @@
         function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
 
         // ==========================================
-        // 3. 隊列操作 (本機暫存)
+        // 隊列操作
         // ==========================================
+        // 切換星號
+        window.toggleStar = (id) => {
+            const idx = currentRecords.findIndex(r => r.id === id);
+            if (idx === -1) return;
+            
+            const newStarred = !currentRecords[idx].isStarred;
+            
+            // 如果係未同步嘅新增，直接改本機
+            const pAdd = pendingChanges.find(c => c.type === 'add' && c.tempId === id);
+            if (pAdd) {
+                pAdd.data.isStarred = newStarred;
+            } else {
+                // 加入或更新隊列
+                pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === id));
+                // 我哋用一個局部 update 只改 isStarred
+                pendingChanges.push({ type: 'update', id, data: { isStarred: newStarred }, partial: true });
+            }
+            
+            currentRecords[idx].isStarred = newStarred;
+            currentRecords[idx]._pending = true;
+            renderRecords();
+            updatePendingIndicator();
+        };
+
         window.queueDelete = (id) => {
             if (!confirm('確定刪除？(需撳儲存)')) return;
             const pAdd = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === id);
@@ -450,11 +490,7 @@
             driverTitle.textContent = '新增司機資料'; addDriverBtn.textContent = '加入資料'; driverCancelBtn.style.display = 'none';
         }
 
-        // ==========================================
-        // 4. 初始化 & 事件綁定
-        // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
-            // 建立按鈕
             const wContainer = document.getElementById('weekdayButtons');
             WEEKDAY_ORDER.forEach(d => {
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'weekday-btn'; b.dataset.day = d; b.textContent = WEEKDAY_LABEL[d];
@@ -490,16 +526,13 @@
                 dsContainer.appendChild(b);
             });
 
-            // 綁定 Autocomplete
             setupAutocomplete(nameInput, phoneInput);
             setupAutocomplete(noteDriver, notePhone);
 
-            // 監聽 Firestore
             listenToRecords();
             listenToNotes();
             listenToDrivers();
 
-            // 表單提交
             form.onsubmit = (e) => {
                 e.preventDefault();
                 if (!nameInput.value.trim() || !phoneInput.value.trim() || selectedWeekdays.size === 0 || !selectedShift || !selectedType) { alert('請填寫完整資料及選擇更別/正替更'); return; }
@@ -507,13 +540,13 @@
                 if (editingId) {
                     const idx = currentRecords.findIndex(r => r.id === editingId);
                     const pAdd = pendingChanges.find(c => c.type === 'add' && c.tempId === editingId);
-                    if(pAdd) pAdd.data = data;
-                    else { pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === editingId)); pendingChanges.push({type:'update', id: editingId, data}); }
+                    if(pAdd) pAdd.data = {...pAdd.data, ...data};
+                    else { pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === editingId)); pendingChanges.push({type:'update', id: editingId, data, partial: false}); }
                     currentRecords[idx] = { ...currentRecords[idx], ...data, _pending: true };
                 } else {
                     const tempId = 'temp_' + Date.now();
-                    currentRecords.unshift({ id: tempId, ...data, _pending: true, createdAt: new Date() });
-                    pendingChanges.push({ type: 'add', tempId, data });
+                    currentRecords.unshift({ id: tempId, ...data, isStarred: false, _pending: true, createdAt: new Date() });
+                    pendingChanges.push({ type: 'add', tempId, data: {...data, isStarred: false} });
                 }
                 renderRecords(); updatePendingIndicator(); exitEditMode(); showSaveMsg('已加入暫存', true);
             };
@@ -555,17 +588,14 @@
                 renderDrivers(); updatePendingIndicator(); exitDriverEditMode(); showSaveMsg('已加入暫存', true);
             };
 
-            // 取消修改
             cancelEditBtn.onclick = () => exitEditMode();
             noteCancelBtn.onclick = () => exitNoteEditMode();
             driverCancelBtn.onclick = () => exitDriverEditMode();
 
-            // 分頁切換
             tabRecords.onclick = () => switchTab('records');
             tabNotes.onclick = () => switchTab('notes');
             tabDrivers.onclick = () => switchTab('drivers');
 
-            // 儲存上雲端
             cloudSaveBtn.onclick = async () => {
                 const total = pendingChanges.length + pendingNoteChanges.length + pendingDriverChanges.length;
                 if (total === 0) { showSaveMsg('冇改動需要儲存', true); return; }
@@ -660,7 +690,6 @@
         .input-group input { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; }
         .input-group input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
 
-        /* Autocomplete 下拉選單 */
         .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; }
         .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
         .autocomplete-item:hover { background: #f9fafb; }
@@ -717,6 +746,11 @@
         .day-tag { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 5px; background: #eef2ff; color: #3730a3; font-size: 0.75rem; font-weight: 600; line-height: 1; }
         .day-tag.empty { background: #f3f4f6; color: #9ca3af; font-weight: 400; padding: 0 8px; }
 
+        /* 星星按鈕 */
+        .star-btn { background: transparent; border: none; font-size: 1.4rem; cursor: pointer; padding: 0; line-height: 1; color: #d1d5db; transition: transform 0.1s, color 0.1s; margin-right: 4px; display: flex; align-items: center; }
+        .star-btn:hover { transform: scale(1.1); }
+        .star-btn.starred { color: #fbbf24; }
+
         .record-actions { display: flex; gap: 5px; flex-shrink: 0; }
         .edit-btn { background: transparent; border: 1px solid #cbd5e1; color: #374151; padding: 5px 11px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; }
         .edit-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
@@ -747,7 +781,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V1.3</span>
+                <span class="version" id="version">V1.4</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
