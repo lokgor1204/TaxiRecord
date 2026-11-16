@@ -60,7 +60,7 @@
         const searchNoteShift = document.getElementById('searchNoteShift');
         const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
-        const APP_VERSION = 'V2.4'; 
+        const APP_VERSION = 'V2.5'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -113,6 +113,7 @@
         const driverForm = document.getElementById('driverForm');
         const dName = document.getElementById('dName');
         const dPhone = document.getElementById('dPhone');
+        const dPlate = document.getElementById('dPlate'); // 新增：司機資料車牌
         const driverTitle = document.getElementById('driverTitle');
         const addDriverBtn = document.getElementById('addDriverBtn');
         const driverCancelBtn = document.getElementById('driverCancelBtn');
@@ -253,6 +254,7 @@
                 });
                 renderDrivers();
                 renderNotes(); 
+                renderRecords(); // 當資料庫更新，連帶更新紀錄嘅車牌
             });
         }
 
@@ -307,8 +309,13 @@
                 const days = WEEKDAY_ORDER.filter(d => rec.weekdays.includes(d)).map(d => `<span class="day-tag">${WEEKDAY_LABEL[d]}</span>`).join('');
                 const shift = SHIFT_LABEL[rec.shift] || rec.shift;
                 const typeLabel = rec.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
-                const plate = rec.plate ? `<span class="record-plate">${escapeHtml(rec.plate)}</span>` : '';
                 
+                // 🛠️ 嘗試由資料庫抓取車牌，如果冇先用紀錄入面嘅
+                let displayPlate = rec.plate || '';
+                const matchedDriver = currentDrivers.find(d => d.name === rec.name);
+                if (matchedDriver && matchedDriver.plate) displayPlate = matchedDriver.plate;
+                const plateLabel = displayPlate ? `<span class="record-plate">${escapeHtml(displayPlate)}</span>` : '';
+
                 let wa = '';
                 if (rec.phone) {
                     const c = rec.phone.replace(/[^0-9]/g, '');
@@ -328,7 +335,7 @@
                                 <span class="driver-name-tag">${escapeHtml(rec.name)}</span>
                                 ${typeLabel}
                                 <span class="record-shift ${rec.shift}">${shift}</span>
-                                ${plate}
+                                ${plateLabel}
                             </div>
                             <div class="record-contact">
                                 <span class="record-phone">${escapeHtml(rec.phone)}</span>
@@ -350,7 +357,6 @@
         function renderNotes() {
             const list = document.getElementById('notesList');
             
-            // 1. 過濾條件
             let filteredNotes = currentNotes;
             if (noteSearchStart) {
                 filteredNotes = filteredNotes.filter(n => n.endDate && n.endDate >= noteSearchStart);
@@ -443,7 +449,8 @@
                 const q = driverSearchQuery.toLowerCase();
                 filtered = currentDrivers.filter(d => 
                     (d.name || '').toLowerCase().includes(q) || 
-                    (d.phone || '').includes(q)
+                    (d.phone || '').includes(q) ||
+                    (d.plate || '').toLowerCase().includes(q) // 🛠️ 支援車牌搜尋
                 );
             }
 
@@ -463,6 +470,7 @@
             list.innerHTML = filtered.map(d => {
                 const typeLabel = d.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
                 const shiftLabel = d.shift ? `<span class="record-shift ${d.shift}">${SHIFT_LABEL[d.shift]}</span>` : '';
+                const plateLabel = d.plate ? `<span class="record-plate">${escapeHtml(d.plate)}</span>` : ''; // 顯示車牌
                 
                 let wa = '';
                 if (d.phone) {
@@ -477,6 +485,7 @@
                             <span class="driver-name-tag">${escapeHtml(d.name)}</span>
                             ${typeLabel}
                             ${shiftLabel}
+                            ${plateLabel}
                         </div>
                         <div class="driver-right">
                             <span class="driver-phone">${escapeHtml(d.phone)}</span>
@@ -604,7 +613,7 @@
         window.enterDriverEditMode = (id) => {
             const d = currentDrivers.find(x => x.id === id); if(!d) return;
             editingDriverId = id;
-            dName.value = d.name; dPhone.value = d.phone;
+            dName.value = d.name; dPhone.value = d.phone; dPlate.value = d.plate || ''; // 填入車牌
             document.querySelectorAll('.d-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === d.type));
             dSelectedShift = d.shift || null;
             document.querySelectorAll('.d-shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === dSelectedShift));
@@ -783,10 +792,11 @@
                 
                 const newName = dName.value.trim();
                 const newPhone = dPhone.value.trim();
+                const newPlate = dPlate.value.trim(); // 攞車牌
                 const newType = typeBtn.dataset.type;
                 const newShift = dSelectedShift;
 
-                const data = { name: newName, phone: newPhone, type: newType, shift: newShift };
+                const data = { name: newName, phone: newPhone, plate: newPlate, type: newType, shift: newShift };
                 
                 if (editingDriverId) {
                     const oldDriver = currentDrivers.find(d => d.id === editingDriverId);
@@ -1069,7 +1079,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V2.4</span>
+                <span class="version" id="version">V2.5</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1131,7 +1141,6 @@
                 <h2>司機紀錄</h2>
             </div>
 
-            <!-- 🛠️ 快速搜尋列 (4合1) -->
             <div class="filter-bar">
                 <div class="filter-item">
                     <input type="text" id="searchRecordText" placeholder="🔍 搜尋人名/電話" style="width: 130px;">
@@ -1265,6 +1274,10 @@
                             <label>更別 (早更 / 夜更)</label>
                             <div id="dShiftButtons" class="d-shift-selector"></div>
                         </div>
+                        <div class="input-group" style="grid-column: 1 / -1;">
+                            <label>車牌 (選填)</label>
+                            <input type="text" id="dPlate" placeholder="AB 1234">
+                        </div>
                     </div>
                     <div class="record-form-actions">
                         <button type="submit" id="addDriverBtn" class="btn btn-primary">加入資料</button>
@@ -1275,7 +1288,7 @@
 
             <div class="records-header">
                 <h2>司機資料庫</h2>
-                <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名或電話...">
+                <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名/電話/車牌...">
             </div>
             <div id="driversList" class="driver-list">
                 <div class="empty-message">載入中...</div>
