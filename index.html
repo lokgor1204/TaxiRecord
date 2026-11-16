@@ -56,7 +56,7 @@
         const searchNoteShift = document.getElementById('searchNoteShift');
         const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
-        const APP_VERSION = 'V2.6'; 
+        const APP_VERSION = 'V2.7'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -712,8 +712,16 @@
 
             form.onsubmit = (e) => {
                 e.preventDefault();
-                if (!nameInput.value.trim() || !phoneInput.value.trim() || selectedWeekdays.size === 0 || !selectedShift || !selectedType) { alert('請填寫完整資料及選擇更別/正替更'); return; }
-                const data = { name: nameInput.value.trim(), phone: phoneInput.value.trim(), plate: plateInput.value.trim().toUpperCase(), weekdays: Array.from(selectedWeekdays), shift: selectedShift, type: selectedType };
+                const inputName = nameInput.value.trim();
+                if (!inputName || !phoneInput.value.trim() || selectedWeekdays.size === 0 || !selectedShift || !selectedType) { alert('請填寫完整資料及選擇更別/正替更'); return; }
+                
+                // 🛠️ 防止重複新增司機紀錄
+                if (!editingId && currentRecords.some(r => r.name.toLowerCase() === inputName.toLowerCase())) {
+                    alert(`「${inputName}」已經存在於司機紀錄中，請勿重複新增！`);
+                    return;
+                }
+
+                const data = { name: inputName, phone: phoneInput.value.trim(), plate: plateInput.value.trim().toUpperCase(), weekdays: Array.from(selectedWeekdays), shift: selectedShift, type: selectedType };
                 if (editingId) {
                     const idx = currentRecords.findIndex(r => r.id === editingId);
                     const pAdd = pendingChanges.find(c => c.type === 'add' && c.tempId === editingId);
@@ -730,11 +738,12 @@
 
             noteForm.onsubmit = (e) => {
                 e.preventDefault();
-                if (!noteStart.value || !noteEnd.value || !noteDriver.value.trim() || !notePhone.value.trim() || !noteText.value.trim()) { alert('請填寫完整備註資料'); return; }
+                const inputDriver = noteDriver.value.trim();
+                if (!noteStart.value || !noteEnd.value || !inputDriver || !notePhone.value.trim() || !noteText.value.trim()) { alert('請填寫完整備註資料'); return; }
                 
                 let noteType = '';
                 let noteShift = '';
-                const matchedDriver = currentDrivers.find(d => d.name === noteDriver.value.trim());
+                const matchedDriver = currentDrivers.find(d => d.name === inputDriver);
                 if (matchedDriver) {
                     if (matchedDriver.type) noteType = matchedDriver.type;
                     if (matchedDriver.shift) noteShift = matchedDriver.shift;
@@ -743,7 +752,7 @@
                 const data = { 
                     startDate: noteStart.value, 
                     endDate: noteEnd.value, 
-                    driver: noteDriver.value.trim(), 
+                    driver: inputDriver, 
                     phone: notePhone.value.trim(), 
                     text: noteText.value.trim(), 
                     type: noteType, 
@@ -768,11 +777,17 @@
             driverForm.onsubmit = (e) => {
                 e.preventDefault();
                 const typeBtn = document.querySelector('.d-type-btn.active');
-                if (!dName.value.trim() || !dPhone.value.trim() || !typeBtn || !dSelectedShift) { alert('請填寫姓名、電話並選擇正/替更及早/夜更'); return; }
-                
                 const newName = dName.value.trim();
+                if (!newName || !dPhone.value.trim() || !typeBtn || !dSelectedShift) { alert('請填寫姓名、電話並選擇正/替更及早/夜更'); return; }
+                
+                // 🛠️ 防止重複新增司機資料
+                if (!editingDriverId && currentDrivers.some(d => d.name.toLowerCase() === newName.toLowerCase())) {
+                    alert(`「${newName}」已經存在於司機資料庫中，請勿重複新增！`);
+                    return;
+                }
+
                 const newPhone = dPhone.value.trim();
-                const newPlate = dPlate.value.trim().toUpperCase(); // 車牌強制大楷
+                const newPlate = dPlate.value.trim().toUpperCase(); 
                 const newType = typeBtn.dataset.type;
                 const newShift = dSelectedShift;
 
@@ -929,10 +944,7 @@
         .input-group input, .input-group select { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; }
         .input-group input:focus, .input-group select:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
         
-        /* 強制車牌輸入自動變大楷 */
-        input[id="plate"], input[id="dPlate"] {
-            text-transform: uppercase;
-        }
+        input[id="plate"], input[id="dPlate"] { text-transform: uppercase; }
 
         .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; }
         .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
@@ -991,16 +1003,7 @@
         .driver-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 120px; }
         .driver-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-        /* 淺藍色底嘅司機名標籤 */
-        .driver-name-tag { 
-            font-weight: 600; 
-            font-size: clamp(0.95rem, 3.6vw, 1.05rem); 
-            color: #1e3a8a; 
-            background: #dbeafe; 
-            padding: 3px 10px; 
-            border-radius: 6px; 
-            display: inline-block;
-        }
+        .driver-name-tag { font-weight: 600; font-size: clamp(0.95rem, 3.6vw, 1.05rem); color: #1e3a8a; background: #dbeafe; padding: 3px 10px; border-radius: 6px; display: inline-block; }
 
         .record-phone, .driver-phone { color: #4b5563; font-size: clamp(0.8rem, 2.9vw, 0.88rem); white-space: nowrap; }
 
@@ -1037,14 +1040,7 @@
 
         /* ===== 備註表單 (強制 Safari 兩格並排) ===== */
         .note-line-1, .note-line-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        
-        /* 強制 Safari 嘅 date input 聽話 */
-        .note-line-1 .input-group input { 
-            width: 100%; 
-            min-width: 0; 
-            -webkit-appearance: none; /* 解決 Safari 某些排版 bug */
-        }
-
+        .note-line-1 .input-group input { width: 100%; min-width: 0; -webkit-appearance: none; }
         .note-line-3 { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; }
         .note-line-3 .input-group { flex: 1; min-width: 0; }
         .note-form-card .input-group input { padding: 9px 8px; font-size: 0.85rem; }
@@ -1071,8 +1067,7 @@
             .driver-right { justify-content: flex-end; }
             .driver-item .record-actions { margin-left: auto; }
             
-            /* 手機版強制 100% 闊度，確保 Safari 唔會迫埋 */
-            .note-line-1, .note-line-2 { grid-template-columns: 1fr 1fr; } /* 依然保持兩欄，但由下面控制大細 */
+            .note-line-1, .note-line-2 { grid-template-columns: 1fr 1fr; } 
             .notes-filter-bar .filter-group { width: 100%; justify-content: space-between; }
             .notes-filter-bar input[type="date"] { flex: 1; min-width: 0; }
         }
@@ -1083,7 +1078,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V2.6</span>
+                <span class="version" id="version">V2.7</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1188,7 +1183,6 @@
             <div class="note-form-card form-card">
                 <h3 id="noteTitle">新增備註</h3>
                 <form id="noteForm">
-                    <!-- 🛠️ 修正：強制兩格並排，確保 Safari 唔會黐埋 -->
                     <div class="note-line-1">
                         <div class="input-group">
                             <label>開始日期</label>
@@ -1226,7 +1220,6 @@
                 </form>
             </div>
 
-            <!-- 🛠️ 備註搜尋列 (修正排位) -->
             <div class="notes-filter-bar">
                 <div class="filter-group">
                     <span>日期：</span>
