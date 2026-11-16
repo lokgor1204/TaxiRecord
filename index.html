@@ -43,24 +43,38 @@
         const cloudSaveBtn = document.getElementById('cloudSaveBtn');
         const saveStatusMsg = document.getElementById('saveStatusMsg');
 
+        // 搜尋元素 - 司機資料
         const searchDriverInput = document.getElementById('searchDriver');
 
-        // 備註搜尋元素
+        // 搜尋元素 - 司機紀錄
+        const searchRecordText = document.getElementById('searchRecordText');
+        const searchRecordType = document.getElementById('searchRecordType');
+        const searchRecordShift = document.getElementById('searchRecordShift');
+        const recordWeekdayCheckboxes = document.querySelectorAll('.record-filter-wd');
+        const clearRecordSearchBtn = document.getElementById('clearRecordSearchBtn');
+
+        // 搜尋元素 - 備註
         const searchNoteStart = document.getElementById('searchNoteStart');
         const searchNoteEnd = document.getElementById('searchNoteEnd');
         const searchNoteType = document.getElementById('searchNoteType');
         const searchNoteShift = document.getElementById('searchNoteShift');
         const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
-        const APP_VERSION = 'V2.3'; 
+        const APP_VERSION = 'V2.4'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
         let currentNotes = [];
         let currentDrivers = [];
+        
+        // 篩選條件
         let driverSearchQuery = ''; 
+        
+        let recordSearchQuery = '';
+        let recordSearchType = '';
+        let recordSearchShift = '';
+        let recordSearchWeekdays = new Set();
 
-        // 備註搜尋條件
         let noteSearchStart = '';
         let noteSearchEnd = '';
         let noteSearchType = '';
@@ -94,7 +108,7 @@
         const noteTitle = document.getElementById('noteTitle');
         const addNoteBtn = document.getElementById('addNoteBtn');
         const noteCancelBtn = document.getElementById('noteCancelBtn');
-        let selectedNoteWeekdays = new Set(); // 備註專用星期幾
+        let selectedNoteWeekdays = new Set(); 
 
         const driverForm = document.getElementById('driverForm');
         const dName = document.getElementById('dName');
@@ -258,12 +272,30 @@
         // ==========================================
         function renderRecords() {
             const list = document.getElementById('recordsList');
-            if (currentRecords.length === 0) {
-                list.innerHTML = `<div class="empty-message">暫時未有司機紀錄。</div>`;
+            
+            // 1. 過濾條件
+            let filtered = currentRecords;
+            if (recordSearchQuery) {
+                const q = recordSearchQuery.toLowerCase();
+                filtered = filtered.filter(r => (r.name || '').toLowerCase().includes(q) || (r.phone || '').includes(q));
+            }
+            if (recordSearchType) {
+                filtered = filtered.filter(r => r.type === recordSearchType);
+            }
+            if (recordSearchShift) {
+                filtered = filtered.filter(r => r.shift === recordSearchShift);
+            }
+            if (recordSearchWeekdays.size > 0) {
+                filtered = filtered.filter(r => Array.from(recordSearchWeekdays).every(day => r.weekdays.includes(day)));
+            }
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="empty-message">暫時未有符合條件嘅司機紀錄。</div>`;
                 return;
             }
 
-            const sortedRecords = [...currentRecords].sort((a, b) => {
+            // 2. 排序
+            const sortedRecords = [...filtered].sort((a, b) => {
                 if (a.isStarred && !b.isStarred) return -1;
                 if (!a.isStarred && b.isStarred) return 1;
                 if (a.type === '正更' && b.type !== '正更') return -1;
@@ -355,7 +387,6 @@
                     wa = `<a class="wa-btn" href="https://wa.me/${num}" target="_blank">${WA_ICON}</a>`;
                 }
 
-                // 自動抓取最新類型同更別
                 let displayType = n.type || '';
                 let displayShift = n.shift || '';
                 const matchedDriver = currentDrivers.find(d => d.name === n.driver);
@@ -367,7 +398,6 @@
                 const typeLabel = displayType === '正更' ? '<span class="type-tag regular">正更</span>' : (displayType === '替更' ? '<span class="type-tag substitute">替更</span>' : '');
                 const shiftLabel = displayShift ? `<span class="record-shift ${displayShift}">${SHIFT_LABEL[displayShift]}</span>` : '';
                 
-                // 🛠️ 顯示備註專屬嘅星期幾
                 let daysTags = '';
                 if (n.weekdays && n.weekdays.length > 0) {
                     daysTags = `<div class="days-tags" style="margin-top: 4px;">${WEEKDAY_ORDER.filter(d => n.weekdays.includes(d)).map(d => `<span class="day-tag" style="background:#fce7f3; color:#be185d;">${WEEKDAY_LABEL[d]}</span>`).join('')}</div>`;
@@ -542,7 +572,6 @@
             noteStart.value = n.startDate; noteEnd.value = n.endDate;
             noteDriver.value = n.driver; notePhone.value = n.phone; noteText.value = n.text;
             
-            // 填入備註專屬星期幾
             selectedNoteWeekdays = new Set(n.weekdays || []);
             document.querySelectorAll('.note-weekday-btn').forEach(b => {
                 b.classList.toggle('active', selectedNoteWeekdays.has(b.dataset.day));
@@ -602,7 +631,6 @@
                 wContainer.appendChild(b);
             });
 
-            // 🛠️ 初始化備註嘅星期幾按鈕
             const nwContainer = document.getElementById('noteWeekdayButtons');
             WEEKDAY_ORDER.forEach(d => {
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'weekday-btn note-weekday-btn'; b.dataset.day = d; b.textContent = WEEKDAY_LABEL[d];
@@ -650,13 +678,37 @@
                 renderDrivers();
             });
 
-            // 備註搜尋監聽
+            // 司機紀錄篩選監聽
+            searchRecordText.addEventListener('input', (e) => { recordSearchQuery = e.target.value.trim(); renderRecords(); });
+            searchRecordType.addEventListener('change', (e) => { recordSearchType = e.target.value; renderRecords(); });
+            searchRecordShift.addEventListener('change', (e) => { recordSearchShift = e.target.value; renderRecords(); });
+            
+            recordWeekdayCheckboxes.forEach(cb => {
+                cb.addEventListener('change', () => {
+                    if (cb.checked) recordSearchWeekdays.add(cb.value);
+                    else recordSearchWeekdays.delete(cb.value);
+                    renderRecords();
+                });
+            });
+
+            clearRecordSearchBtn.addEventListener('click', () => {
+                searchRecordText.value = '';
+                searchRecordType.value = '';
+                searchRecordShift.value = '';
+                recordWeekdayCheckboxes.forEach(cb => { cb.checked = false; });
+                recordSearchQuery = '';
+                recordSearchType = '';
+                recordSearchShift = '';
+                recordSearchWeekdays.clear();
+                renderRecords();
+            });
+
+            // 備註篩選監聽
             searchNoteStart.addEventListener('input', (e) => { noteSearchStart = e.target.value; renderNotes(); });
             searchNoteEnd.addEventListener('input', (e) => { noteSearchEnd = e.target.value; renderNotes(); });
             searchNoteType.addEventListener('change', (e) => { noteSearchType = e.target.value; renderNotes(); });
             searchNoteShift.addEventListener('change', (e) => { noteSearchShift = e.target.value; renderNotes(); });
             
-            // 清除搜尋
             clearNoteSearchBtn.addEventListener('click', () => {
                 searchNoteStart.value = '';
                 searchNoteEnd.value = '';
@@ -707,7 +759,7 @@
                     text: noteText.value.trim(), 
                     type: noteType, 
                     shift: noteShift,
-                    weekdays: Array.from(selectedNoteWeekdays) // 儲存揀選嘅星期幾
+                    weekdays: Array.from(selectedNoteWeekdays)
                 };
                 
                 if (editingNoteId) {
@@ -746,9 +798,7 @@
                     else { pendingDriverChanges = pendingDriverChanges.filter(c => !(c.type === 'update' && c.id === editingDriverId)); pendingDriverChanges.push({type:'update', id: editingDriverId, data}); }
                     currentDrivers[idx] = { ...currentDrivers[idx], ...data, _pending: true };
 
-                    // 🛠️ 自動連動更新：如果改咗個名，幫手將「司機紀錄」同「備註」嘅舊名都轉做新名
                     if (oldName && oldName !== newName) {
-                        // 更新司機紀錄
                         currentRecords.forEach(r => {
                             if (r.name === oldName) {
                                 r.name = newName;
@@ -763,7 +813,6 @@
                         });
                         renderRecords();
 
-                        // 更新備註
                         currentNotes.forEach(n => {
                             if (n.driver === oldName) {
                                 n.driver = newName;
@@ -917,13 +966,23 @@
         .search-input { padding: 6px 12px; border-radius: 20px; border: 1px solid #d1d5db; font-size: 0.85rem; outline: none; width: 150px; }
         .search-input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
 
-        /* 備註搜尋列 */
-        .notes-filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
-        .notes-filter-bar .filter-group { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: #4b5563; }
-        .notes-filter-bar input[type="date"], .notes-filter-bar select { padding: 5px 8px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; outline: none; }
-        .notes-filter-bar input[type="date"]:focus, .notes-filter-bar select:focus { border-color: #6b7280; }
-        .btn-clear { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: 0.12s; }
+        /* ===== 快速搜尋列 (橫向排版) ===== */
+        .filter-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; background: #f9fafb; padding: 8px; border-radius: 10px; border: 1px solid #e5e7eb; }
+        .filter-item { display: flex; align-items: center; }
+        .filter-item input[type="text"], .filter-item select, .filter-item input[type="date"] { padding: 6px 10px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; outline: none; background: white; }
+        .filter-item input[type="text"]:focus, .filter-item select:focus, .filter-item input[type="date"]:focus { border-color: #6b7280; }
+        .btn-clear { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: 0.12s; white-space: nowrap; }
         .btn-clear:hover { background: #fef2f2; }
+
+        /* 星期幾下拉式選單 (為咗慳位) */
+        .wd-dropdown { position: relative; }
+        .wd-dropdown summary { list-style: none; padding: 6px 10px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; background: white; cursor: pointer; outline: none; user-select: none; white-space: nowrap; color: #374151; }
+        .wd-dropdown summary::-webkit-details-marker { display: none; }
+        .wd-dropdown summary::after { content: ' ▼'; font-size: 0.6rem; color: #9ca3af; }
+        .wd-dropdown[open] summary { border-color: #6b7280; }
+        .wd-dropdown-content { position: absolute; top: 100%; left: 0; margin-top: 4px; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 8px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 50; min-width: 200px; }
+        .wd-dropdown-content label { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; cursor: pointer; padding: 2px 4px; }
+        .wd-dropdown-content input[type="checkbox"] { accent-color: #1f2937; cursor: pointer; }
 
         .records-list, .driver-list { display: flex; flex-direction: column; gap: 7px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
 
@@ -986,7 +1045,7 @@
         .note-line-3 { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; }
         .note-line-3 .input-group { flex: 1; }
         .note-form-card .input-group input { padding: 9px 8px; font-size: 0.85rem; }
-        .note-form-card .weekday-btn { padding: 8px 2px; font-size: 0.8rem; } /* 備註專用星期幾掣縮細少少 */
+        .note-form-card .weekday-btn { padding: 8px 2px; font-size: 0.8rem; }
 
         /* ===== 備註列表 ===== */
         .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
@@ -1010,7 +1069,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V2.3</span>
+                <span class="version" id="version">V2.4</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1071,6 +1130,41 @@
             <div class="records-header">
                 <h2>司機紀錄</h2>
             </div>
+
+            <!-- 🛠️ 快速搜尋列 (4合1) -->
+            <div class="filter-bar">
+                <div class="filter-item">
+                    <input type="text" id="searchRecordText" placeholder="🔍 搜尋人名/電話" style="width: 130px;">
+                </div>
+                <div class="filter-item">
+                    <select id="searchRecordType">
+                        <option value="">全部類型</option>
+                        <option value="正更">正更</option>
+                        <option value="替更">替更</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <select id="searchRecordShift">
+                        <option value="">全部更別</option>
+                        <option value="morning">早更</option>
+                        <option value="night">夜更</option>
+                    </select>
+                </div>
+                <details class="wd-dropdown">
+                    <summary>📅 星期幾</summary>
+                    <div class="wd-dropdown-content">
+                        <label><input type="checkbox" class="record-filter-wd" value="mon"> 一</label>
+                        <label><input type="checkbox" class="record-filter-wd" value="tue"> 二</label>
+                        <label><input type="checkbox" class="record-filter-wd" value="wed"> 三</label>
+                        <label><input type="checkbox" class="record-filter-wd" value="thu"> 四</label>
+                        <label><input type="checkbox" class="record-filter-wd" value="fri"> 五</label>
+                        <label><input type="checkbox" class="record-filter-wd" value="sat"> 六</label>
+                        <label><input type="checkbox" class="record-filter-wd" value="sun"> 日</label>
+                    </div>
+                </details>
+                <button type="button" id="clearRecordSearchBtn" class="btn-clear">清除</button>
+            </div>
+
             <div id="recordsList" class="records-list">
                 <div class="empty-message">載入中...</div>
             </div>
@@ -1092,7 +1186,6 @@
                         </div>
                     </div>
                     
-                    <!-- 🛠️ 新增：備註專屬星期幾選擇 -->
                     <div class="input-group" style="grid-column: 1 / -1; margin-bottom: 8px;">
                         <label>指定星期幾 (選填)</label>
                         <div id="noteWeekdayButtons" class="weekday-selector"></div>
@@ -1119,7 +1212,6 @@
                 </form>
             </div>
 
-            <!-- 備註搜尋列 -->
             <div class="notes-filter-bar">
                 <div class="filter-group">
                     <span>日期：</span>
