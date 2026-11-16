@@ -52,7 +52,7 @@
         const searchNoteShift = document.getElementById('searchNoteShift');
         const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
-        const APP_VERSION = 'V2.2'; 
+        const APP_VERSION = 'V2.3'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -94,6 +94,7 @@
         const noteTitle = document.getElementById('noteTitle');
         const addNoteBtn = document.getElementById('addNoteBtn');
         const noteCancelBtn = document.getElementById('noteCancelBtn');
+        let selectedNoteWeekdays = new Set(); // 備註專用星期幾
 
         const driverForm = document.getElementById('driverForm');
         const dName = document.getElementById('dName');
@@ -365,6 +366,12 @@
 
                 const typeLabel = displayType === '正更' ? '<span class="type-tag regular">正更</span>' : (displayType === '替更' ? '<span class="type-tag substitute">替更</span>' : '');
                 const shiftLabel = displayShift ? `<span class="record-shift ${displayShift}">${SHIFT_LABEL[displayShift]}</span>` : '';
+                
+                // 🛠️ 顯示備註專屬嘅星期幾
+                let daysTags = '';
+                if (n.weekdays && n.weekdays.length > 0) {
+                    daysTags = `<div class="days-tags" style="margin-top: 4px;">${WEEKDAY_ORDER.filter(d => n.weekdays.includes(d)).map(d => `<span class="day-tag" style="background:#fce7f3; color:#be185d;">${WEEKDAY_LABEL[d]}</span>`).join('')}</div>`;
+                }
 
                 return `
                     <div class="note-item ${n._pending ? 'pending' : ''}" data-id="${n.id}">
@@ -373,10 +380,13 @@
                             <span class="note-text">${escapeHtml(n.text)}</span>
                         </div>
                         <div class="note-row-bottom">
-                            <div class="row-left">
-                                <span class="driver-name-tag">${escapeHtml(n.driver)}</span>
-                                ${typeLabel}
-                                ${shiftLabel}
+                            <div class="row-left" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+                                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                    <span class="driver-name-tag">${escapeHtml(n.driver)}</span>
+                                    ${typeLabel}
+                                    ${shiftLabel}
+                                </div>
+                                ${daysTags}
                             </div>
                             <div class="record-contact">
                                 <span class="record-phone">${n.phone ? escapeHtml(n.phone) : ''}</span>
@@ -531,6 +541,13 @@
             editingNoteId = id;
             noteStart.value = n.startDate; noteEnd.value = n.endDate;
             noteDriver.value = n.driver; notePhone.value = n.phone; noteText.value = n.text;
+            
+            // 填入備註專屬星期幾
+            selectedNoteWeekdays = new Set(n.weekdays || []);
+            document.querySelectorAll('.note-weekday-btn').forEach(b => {
+                b.classList.toggle('active', selectedNoteWeekdays.has(b.dataset.day));
+            });
+            
             noteTitle.textContent = '修改備註'; addNoteBtn.textContent = '加入修改'; noteCancelBtn.style.display = 'inline-block';
             noteForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
@@ -538,6 +555,8 @@
         function exitNoteEditMode() {
             editingNoteId = null;
             noteForm.reset();
+            selectedNoteWeekdays.clear();
+            document.querySelectorAll('.note-weekday-btn').forEach(b => b.classList.remove('active'));
             noteTitle.textContent = '新增備註'; addNoteBtn.textContent = '加入備註'; noteCancelBtn.style.display = 'none';
         }
 
@@ -581,6 +600,14 @@
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'weekday-btn'; b.dataset.day = d; b.textContent = WEEKDAY_LABEL[d];
                 b.onclick = () => { if(selectedWeekdays.has(d)){selectedWeekdays.delete(d); b.classList.remove('active');} else {selectedWeekdays.add(d); b.classList.add('active');} };
                 wContainer.appendChild(b);
+            });
+
+            // 🛠️ 初始化備註嘅星期幾按鈕
+            const nwContainer = document.getElementById('noteWeekdayButtons');
+            WEEKDAY_ORDER.forEach(d => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'weekday-btn note-weekday-btn'; b.dataset.day = d; b.textContent = WEEKDAY_LABEL[d];
+                b.onclick = () => { if(selectedNoteWeekdays.has(d)){selectedNoteWeekdays.delete(d); b.classList.remove('active');} else {selectedNoteWeekdays.add(d); b.classList.add('active');} };
+                nwContainer.appendChild(b);
             });
 
             const sContainer = document.getElementById('shiftButtons');
@@ -672,7 +699,16 @@
                     if (matchedDriver.shift) noteShift = matchedDriver.shift;
                 }
 
-                const data = { startDate: noteStart.value, endDate: noteEnd.value, driver: noteDriver.value.trim(), phone: notePhone.value.trim(), text: noteText.value.trim(), type: noteType, shift: noteShift };
+                const data = { 
+                    startDate: noteStart.value, 
+                    endDate: noteEnd.value, 
+                    driver: noteDriver.value.trim(), 
+                    phone: notePhone.value.trim(), 
+                    text: noteText.value.trim(), 
+                    type: noteType, 
+                    shift: noteShift,
+                    weekdays: Array.from(selectedNoteWeekdays) // 儲存揀選嘅星期幾
+                };
                 
                 if (editingNoteId) {
                     const idx = currentNotes.findIndex(n => n.id === editingNoteId);
@@ -950,6 +986,7 @@
         .note-line-3 { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; }
         .note-line-3 .input-group { flex: 1; }
         .note-form-card .input-group input { padding: 9px 8px; font-size: 0.85rem; }
+        .note-form-card .weekday-btn { padding: 8px 2px; font-size: 0.8rem; } /* 備註專用星期幾掣縮細少少 */
 
         /* ===== 備註列表 ===== */
         .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
@@ -973,7 +1010,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V2.2</span>
+                <span class="version" id="version">V2.3</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1054,6 +1091,13 @@
                             <input type="date" id="noteEnd" required>
                         </div>
                     </div>
+                    
+                    <!-- 🛠️ 新增：備註專屬星期幾選擇 -->
+                    <div class="input-group" style="grid-column: 1 / -1; margin-bottom: 8px;">
+                        <label>指定星期幾 (選填)</label>
+                        <div id="noteWeekdayButtons" class="weekday-selector"></div>
+                    </div>
+
                     <div class="note-line-2">
                         <div class="input-group">
                             <label>司機姓名 (可搜尋)</label>
@@ -1078,77 +1122,4 @@
             <!-- 備註搜尋列 -->
             <div class="notes-filter-bar">
                 <div class="filter-group">
-                    <span>日期：</span>
-                    <input type="date" id="searchNoteStart" title="開始日期搜尋">
-                    <span>至</span>
-                    <input type="date" id="searchNoteEnd" title="結束日期搜尋">
-                </div>
-                <div class="filter-group">
-                    <span>類型：</span>
-                    <select id="searchNoteType">
-                        <option value="">全部</option>
-                        <option value="正更">正更</option>
-                        <option value="替更">替更</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <span>更別：</span>
-                    <select id="searchNoteShift">
-                        <option value="">全部</option>
-                        <option value="morning">早更</option>
-                        <option value="night">夜更</option>
-                    </select>
-                </div>
-                <button type="button" id="clearNoteSearchBtn" class="btn-clear">清除搜尋</button>
-            </div>
-
-            <div id="notesList" class="records-list">
-                <div class="empty-message">載入中...</div>
-            </div>
-        </div>
-
-        <!-- 分頁 3：司機資料 -->
-        <div id="panelDrivers" style="display: none;">
-            <div class="form-card">
-                <h3 id="driverTitle">新增司機資料</h3>
-                <form id="driverForm">
-                    <div class="form-grid">
-                        <div class="input-group">
-                            <label>司機姓名</label>
-                            <input type="text" id="dName" placeholder="陳大文" required>
-                        </div>
-                        <div class="input-group">
-                            <label>電話號碼</label>
-                            <input type="tel" id="dPhone" placeholder="91234567" required>
-                        </div>
-                        <div class="input-group">
-                            <label>類型 (正更 / 替更)</label>
-                            <div id="dTypeButtons" class="d-type-selector"></div>
-                        </div>
-                        <div class="input-group">
-                            <label>更別 (早更 / 夜更)</label>
-                            <div id="dShiftButtons" class="d-shift-selector"></div>
-                        </div>
-                    </div>
-                    <div class="record-form-actions">
-                        <button type="submit" id="addDriverBtn" class="btn btn-primary">加入資料</button>
-                        <button type="button" id="driverCancelBtn" class="btn btn-outline" style="display: none;">取消修改</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="records-header">
-                <h2>司機資料庫</h2>
-                <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名或電話...">
-            </div>
-            <div id="driversList" class="driver-list">
-                <div class="empty-message">載入中...</div>
-            </div>
-        </div>
-
-        <footer>
-            手動儲存模式 · 改動暫存本機，撳右上角「儲存」才寫上雲端 · 備註結束日期後 6 日自動刪除
-        </footer>
-    </div>
-</body>
-</html>
+                    <span>日期：</span
