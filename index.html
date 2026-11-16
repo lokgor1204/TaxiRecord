@@ -1122,4 +1122,77 @@
             <!-- 備註搜尋列 -->
             <div class="notes-filter-bar">
                 <div class="filter-group">
-                    <span>日期：</span
+                    <span>日期：</span>
+                    <input type="date" id="searchNoteStart" title="開始日期搜尋">
+                    <span>至</span>
+                    <input type="date" id="searchNoteEnd" title="結束日期搜尋">
+                </div>
+                <div class="filter-group">
+                    <span>類型：</span>
+                    <select id="searchNoteType">
+                        <option value="">全部</option>
+                        <option value="正更">正更</option>
+                        <option value="替更">替更</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <span>更別：</span>
+                    <select id="searchNoteShift">
+                        <option value="">全部</option>
+                        <option value="morning">早更</option>
+                        <option value="night">夜更</option>
+                    </select>
+                </div>
+                <button type="button" id="clearNoteSearchBtn" class="btn-clear">清除搜尋</button>
+            </div>
+
+            <div id="notesList" class="records-list">
+                <div class="empty-message">載入中...</div>
+            </div>
+        </div>
+
+        <!-- 分頁 3：司機資料 -->
+        <div id="panelDrivers" style="display: none;">
+            <div class="form-card">
+                <h3 id="driverTitle">新增司機資料</h3>
+                <form id="driverForm">
+                    <div class="form-grid">
+                        <div class="input-group">
+                            <label>司機姓名</label>
+                            <input type="text" id="dName" placeholder="陳大文" required>
+                        </div>
+                        <div class="input-group">
+                            <label>電話號碼</label>
+                            <input type="tel" id="dPhone" placeholder="91234567" required>
+                        </div>
+                        <div class="input-group">
+                            <label>類型 (正更 / 替更)</label>
+                            <div id="dTypeButtons" class="d-type-selector"></div>
+                        </div>
+                        <div class="input-group">
+                            <label>更別 (早更 / 夜更)</label>
+                            <div id="dShiftButtons" class="d-shift-selector"></div>
+                        </div>
+                    </div>
+                    <div class="record-form-actions">
+                        <button type="submit" id="addDriverBtn" class="btn btn-primary">加入資料</button>
+                        <button type="button" id="driverCancelBtn" class="btn btn-outline" style="display: none;">取消修改</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="records-header">
+                <h2>司機資料庫</h2>
+                <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名或電話...">
+            </div>
+            <div id="driversList" class="driver-list">
+                <div class="empty-message">載入中...</div>
+            </div>
+        </div>
+
+        <footer>
+            手動儲存模式 · 改動暫存本機，撳右上角「儲存」才寫上雲端 · 備註結束日期後 6 日自動刪除
+        </footer>
+    </div>
+</body>
+</html>
