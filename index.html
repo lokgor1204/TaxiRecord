@@ -56,7 +56,7 @@
         const searchNoteShift = document.getElementById('searchNoteShift');
         const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
-        const APP_VERSION = 'V2.7'; 
+        const APP_VERSION = 'V2.8'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -82,17 +82,19 @@
         let editingNoteId = null;
         let editingDriverId = null;
 
+        // 指定編更 (原司機紀錄) 表單
         const form = document.getElementById('recordForm');
         const nameInput = document.getElementById('name');
-        const phoneInput = document.getElementById('phone');
+        const phoneInput = document.getElementById('phone'); // 隱藏，用嚟存電話
         const plateInput = document.getElementById('plate');
         const formTitle = document.getElementById('formTitle');
         const saveBtn = document.getElementById('saveBtn');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         let selectedWeekdays = new Set();
         let selectedShift = null;
-        let selectedType = null; 
+        let selectedType = null; // 自動由資料庫抓取
 
+        // 備註表單
         const noteForm = document.getElementById('noteForm');
         const noteStart = document.getElementById('noteStart');
         const noteEnd = document.getElementById('noteEnd');
@@ -104,6 +106,7 @@
         const noteCancelBtn = document.getElementById('noteCancelBtn');
         let selectedNoteWeekdays = new Set(); 
 
+        // 司機資料表單
         const driverForm = document.getElementById('driverForm');
         const dName = document.getElementById('dName');
         const dPhone = document.getElementById('dPhone');
@@ -168,15 +171,59 @@
             }
         }
 
-        function setupAutocomplete(inputEl, phoneEl) {
+        // 🛠️ 專為「指定編更」寫嘅自動填入（必須由名單撳落去）
+        function setupRecordAutocomplete() {
             const dropdown = document.createElement('div');
             dropdown.className = 'autocomplete-dropdown';
             dropdown.style.display = 'none';
-            inputEl.parentNode.style.position = 'relative';
-            inputEl.parentNode.appendChild(dropdown);
+            nameInput.parentNode.style.position = 'relative';
+            nameInput.parentNode.appendChild(dropdown);
 
-            inputEl.addEventListener('input', () => {
-                const val = inputEl.value.trim().toLowerCase();
+            // 唔准瀏覽器自動填，強迫佢揀
+            nameInput.setAttribute('autocomplete', 'off');
+
+            nameInput.addEventListener('input', () => {
+                const val = nameInput.value.trim().toLowerCase();
+                if (!val) { dropdown.style.display = 'none'; phoneInput.value = ''; selectedType = null; return; }
+                
+                const matches = currentDrivers.filter(d => d.name.toLowerCase().includes(val));
+                
+                if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+
+                dropdown.innerHTML = matches.map(d => `
+                    <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}" data-type="${escapeHtml(d.type)}">
+                        <span>${escapeHtml(d.name)}</span>
+                        <span class="ac-phone">${escapeHtml(d.phone)}</span>
+                    </div>
+                `).join('');
+                dropdown.style.display = 'block';
+
+                dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        nameInput.value = item.getAttribute('data-name');
+                        phoneInput.value = item.getAttribute('data-phone');
+                        selectedType = item.getAttribute('data-type'); // 自動抓取正/替更
+                        dropdown.style.display = 'none';
+                    });
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (e.target !== nameInput && !dropdown.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                }
+            });
+        }
+
+        function setupNoteAutocomplete() {
+            const dropdown = document.createElement('div');
+            dropdown.className = 'autocomplete-dropdown';
+            dropdown.style.display = 'none';
+            noteDriver.parentNode.style.position = 'relative';
+            noteDriver.parentNode.appendChild(dropdown);
+
+            noteDriver.addEventListener('input', () => {
+                const val = noteDriver.value.trim().toLowerCase();
                 if (!val) { dropdown.style.display = 'none'; return; }
                 
                 const matches = currentDrivers.filter(d => d.name.toLowerCase().includes(val));
@@ -193,15 +240,15 @@
 
                 dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
                     item.addEventListener('click', () => {
-                        inputEl.value = item.getAttribute('data-name');
-                        if (phoneEl) phoneEl.value = item.getAttribute('data-phone');
+                        noteDriver.value = item.getAttribute('data-name');
+                        notePhone.value = item.getAttribute('data-phone');
                         dropdown.style.display = 'none';
                     });
                 });
             });
 
             document.addEventListener('click', (e) => {
-                if (e.target !== inputEl && !dropdown.contains(e.target)) {
+                if (e.target !== noteDriver && !dropdown.contains(e.target)) {
                     dropdown.style.display = 'none';
                 }
             });
@@ -282,7 +329,7 @@
             }
 
             if (filtered.length === 0) {
-                list.innerHTML = `<div class="empty-message">暫時未有符合條件嘅司機紀錄。</div>`;
+                list.innerHTML = `<div class="empty-message">暫時未有符合條件嘅指定編更。</div>`;
                 return;
             }
 
@@ -530,22 +577,22 @@
             const r = currentRecords.find(x => x.id === id); if(!r) return;
             editingId = id;
             nameInput.value = r.name; phoneInput.value = r.phone; plateInput.value = r.plate || '';
+            selectedType = r.type;
             selectedWeekdays = new Set(r.weekdays);
             document.querySelectorAll('.weekday-btn').forEach(b => b.classList.toggle('active', selectedWeekdays.has(b.dataset.day)));
             selectedShift = r.shift;
             document.querySelectorAll('.shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === selectedShift));
-            selectedType = r.type;
-            document.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === selectedType));
-            formTitle.textContent = '修改司機紀錄'; saveBtn.textContent = '加入修改'; cancelEditBtn.style.display = 'inline-block';
+            formTitle.textContent = '修改指定編更'; saveBtn.textContent = '加入修改'; cancelEditBtn.style.display = 'inline-block';
             form.scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
 
         function exitEditMode() {
             editingId = null;
             form.reset();
+            phoneInput.value = ''; // 清空隱藏電話
             selectedWeekdays.clear(); selectedShift = null; selectedType = null;
-            document.querySelectorAll('.weekday-btn, .shift-btn, .type-btn').forEach(b => b.classList.remove('active'));
-            formTitle.textContent = '新增司機紀錄'; saveBtn.textContent = '加入新增'; cancelEditBtn.style.display = 'none';
+            document.querySelectorAll('.weekday-btn, .shift-btn').forEach(b => b.classList.remove('active'));
+            formTitle.textContent = '指定編更'; saveBtn.textContent = '加入新增'; cancelEditBtn.style.display = 'none';
         }
 
         window.queueDeleteNote = (id) => {
@@ -636,13 +683,6 @@
                 sContainer.appendChild(b);
             });
 
-            const tContainer = document.getElementById('typeButtons');
-            ['正更', '替更'].forEach(t => {
-                const b = document.createElement('button'); b.type = 'button'; b.className = 'type-btn'; b.dataset.type = t; b.textContent = t;
-                b.onclick = () => { selectedType = t; document.querySelectorAll('.type-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
-                tContainer.appendChild(b);
-            });
-
             const dtContainer = document.getElementById('dTypeButtons');
             ['正更', '替更'].forEach(t => {
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'd-type-btn'; b.dataset.type = t; b.textContent = t;
@@ -657,8 +697,8 @@
                 dsContainer.appendChild(b);
             });
 
-            setupAutocomplete(nameInput, phoneInput);
-            setupAutocomplete(noteDriver, notePhone);
+            setupRecordAutocomplete();
+            setupNoteAutocomplete();
 
             listenToRecords();
             listenToNotes();
@@ -713,15 +753,27 @@
             form.onsubmit = (e) => {
                 e.preventDefault();
                 const inputName = nameInput.value.trim();
-                if (!inputName || !phoneInput.value.trim() || selectedWeekdays.size === 0 || !selectedShift || !selectedType) { alert('請填寫完整資料及選擇更別/正替更'); return; }
                 
-                // 🛠️ 防止重複新增司機紀錄
+                // 必須由名單揀選，所以要有電話同類型
+                if (!inputName || !phoneInput.value || !selectedType || selectedWeekdays.size === 0 || !selectedShift) { 
+                    alert('請喺名單中撳選司機，並選擇星期幾及更別。'); 
+                    return; 
+                }
+                
                 if (!editingId && currentRecords.some(r => r.name.toLowerCase() === inputName.toLowerCase())) {
-                    alert(`「${inputName}」已經存在於司機紀錄中，請勿重複新增！`);
+                    alert(`「${inputName}」已經存在於指定編更中，請勿重複新增！`);
                     return;
                 }
 
-                const data = { name: inputName, phone: phoneInput.value.trim(), plate: plateInput.value.trim().toUpperCase(), weekdays: Array.from(selectedWeekdays), shift: selectedShift, type: selectedType };
+                const data = { 
+                    name: inputName, 
+                    phone: phoneInput.value, 
+                    plate: plateInput.value.trim().toUpperCase(), 
+                    weekdays: Array.from(selectedWeekdays), 
+                    shift: selectedShift, 
+                    type: selectedType 
+                };
+
                 if (editingId) {
                     const idx = currentRecords.findIndex(r => r.id === editingId);
                     const pAdd = pendingChanges.find(c => c.type === 'add' && c.tempId === editingId);
@@ -780,7 +832,6 @@
                 const newName = dName.value.trim();
                 if (!newName || !dPhone.value.trim() || !typeBtn || !dSelectedShift) { alert('請填寫姓名、電話並選擇正/替更及早/夜更'); return; }
                 
-                // 🛠️ 防止重複新增司機資料
                 if (!editingDriverId && currentDrivers.some(d => d.name.toLowerCase() === newName.toLowerCase())) {
                     alert(`「${newName}」已經存在於司機資料庫中，請勿重複新增！`);
                     return;
@@ -1038,6 +1089,14 @@
 
         .empty-message { text-align: center; padding: 32px 16px; color: #9ca3af; background: #f9fafb; border-radius: 10px; border: 1px dashed #d1d5db; font-size: 0.9rem; }
 
+        /* ===== 指定編更表單排版 (三行) ===== */
+        .record-form-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+        .record-line-1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .record-line-2 { display: block; }
+        .record-line-3 { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: flex-end; }
+        .record-line-3 .shift-selector { grid-template-columns: 1fr 1fr; }
+        .record-line-3 button { height: 42px; white-space: nowrap; }
+
         /* ===== 備註表單 (強制 Safari 兩格並排) ===== */
         .note-line-1, .note-line-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         .note-line-1 .input-group input { width: 100%; min-width: 0; -webkit-appearance: none; }
@@ -1078,7 +1137,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V2.7</span>
+                <span class="version" id="version">V2.8</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1093,51 +1152,53 @@
         </div>
 
         <div class="tabs">
-            <button type="button" id="tabRecords" class="tab-btn active">司機紀錄</button>
+            <button type="button" id="tabRecords" class="tab-btn active">指定編更</button>
             <button type="button" id="tabNotes" class="tab-btn">備註</button>
             <button type="button" id="tabDrivers" class="tab-btn">司機資料</button>
         </div>
 
-        <!-- 分頁 1：司機紀錄 -->
+        <!-- 分頁 1：指定編更 -->
         <div id="panelRecords">
             <div class="form-card">
-                <h2 id="formTitle">新增司機紀錄</h2>
+                <h2 id="formTitle">指定編更</h2>
                 <form id="recordForm">
-                    <div class="form-grid">
-                        <div class="input-group">
-                            <label>司機姓名</label>
-                            <input type="text" id="name" placeholder="陳大文" required autocomplete="off">
+                    <div class="record-form-grid">
+                        <!-- 第一行：司機姓名(必須搜尋) + 車牌 -->
+                        <div class="record-line-1">
+                            <div class="input-group">
+                                <label>司機姓名</label>
+                                <input type="text" id="name" placeholder="輸入並撳選司機" required autocomplete="off">
+                                <input type="hidden" id="phone"> <!-- 隱藏電話，由資料庫抓取 -->
+                            </div>
+                            <div class="input-group">
+                                <label>車牌（選填）</label>
+                                <input type="text" id="plate" placeholder="AB 1234">
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <label>電話號碼</label>
-                            <input type="tel" id="phone" placeholder="91234567" required>
-                        </div>
-                        <div class="input-group" style="grid-column: 1 / -1;">
+                        
+                        <!-- 第二行：星期一至日 -->
+                        <div class="record-line-2 input-group">
                             <label>逢星期幾返工（可揀多日）</label>
                             <div id="weekdayButtons" class="weekday-selector"></div>
                         </div>
-                        <div class="input-group">
-                            <label>更別</label>
-                            <div id="shiftButtons" class="shift-selector"></div>
+                        
+                        <!-- 第三行：更別 + 掣 -->
+                        <div class="record-line-3">
+                            <div class="input-group">
+                                <label>更別</label>
+                                <div id="shiftButtons" class="shift-selector"></div>
+                            </div>
+                            <div class="record-form-actions">
+                                <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
+                                <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">取消修改</button>
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <label>車牌（選填）</label>
-                            <input type="text" id="plate" placeholder="AB 1234">
-                        </div>
-                        <div class="input-group" style="grid-column: 1 / -1;">
-                            <label>類型</label>
-                            <div id="typeButtons" class="type-selector"></div>
-                        </div>
-                    </div>
-                    <div class="record-form-actions">
-                        <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
-                        <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">取消修改</button>
                     </div>
                 </form>
             </div>
 
             <div class="records-header">
-                <h2>司機紀錄</h2>
+                <h2>指定編更紀錄</h2>
             </div>
 
             <div class="filter-bar">
