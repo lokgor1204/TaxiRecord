@@ -19,7 +19,7 @@
 
         /* 以下兩行唔好改 */
         const UNLOCK_KEY = 'taxiRecordUnlocked';
-        const APP_VERSION = 'V3.1';
+        const APP_VERSION = 'V3.2';
 
         const firebaseConfig = {
             apiKey: "AIzaSyB_bNvEgF5-4m8czZSv15ZTY8-7_7LYQPg",
@@ -33,7 +33,7 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        // 統計功能失敗都唔可以拖死成個 APP（修正 5）
+        // 統計功能失敗都唔可以拖死成個 APP
         try { getAnalytics(app); } catch (err) { console.warn('Analytics 略過：', err); }
         const db = getFirestore(app);
 
@@ -207,7 +207,7 @@
             }
         }
 
-        /* ===== 修正 3：同一個 id 只保留一條 update，資料合併而唔係覆蓋 ===== */
+        /* ===== 同一個 id 只保留一條 update，資料合併而唔係覆蓋 ===== */
         function queueChange(pending, id, data) {
             const add = pending.find(c => c.type === 'add' && c.tempId === id);
             if (add) { Object.assign(add.data, data); return; }
@@ -216,7 +216,7 @@
             pending.push({ type: 'update', id, data: Object.assign({}, data) });
         }
 
-        /* ===== 修正 4：雲端資料同未儲存改動合併，唔會再有「見唔到別人更新」 ===== */
+        /* ===== 雲端資料同未儲存改動合併 ===== */
         function mergeWithPending(serverList, pending) {
             const map = new Map();
             serverList.forEach(d => map.set(d.id, Object.assign({}, d)));
@@ -342,7 +342,7 @@
             });
         }
 
-        /* ================= 讀取雲端（修正 6：唔用 orderBy，避免舊資料消失） ================= */
+        /* ================= 讀取雲端 ================= */
         function listenAll() {
             if (unsubRecords) return;
             setStatus('connecting');
@@ -433,7 +433,7 @@
                     ? '<span class="type-tag regular">正更</span>'
                     : '<span class="type-tag substitute">替更</span>';
 
-                /* 修正 8：以紀錄自己嘅車牌為先，冇才用司機資料庫嘅 */
+                /* 以紀錄自己嘅車牌為先，冇才用司機資料庫嘅 */
                 let displayPlate = (rec.plate || '').trim();
                 if (!displayPlate) {
                     const matchedDriver = currentDrivers.find(d => d.name === rec.name);
@@ -566,7 +566,6 @@
         function renderDrivers() {
             const list = document.getElementById('driversList');
 
-            /* 小修正：唔再直接 sort 原始陣列 */
             let filtered = currentDrivers.slice();
             if (driverSearchQuery) {
                 const q = driverSearchQuery.toLowerCase();
@@ -1148,7 +1147,7 @@
             cloudSaveBtn.onclick = handleSave;
         }
 
-        /* ================= 儲存（修正 1、2） ================= */
+        /* ================= 儲存 ================= */
         async function handleSave() {
             const total = pendingTotal();
             if (total === 0) { showSaveMsg('冇改動需要儲存', true); return; }
@@ -1230,15 +1229,18 @@
             pendingChanges = failedRecords;
             pendingNoteChanges = failedNotes;
 
-            /* 修正 1：臨時 ID 換成真正 ID */
+            /* 修正 1：臨時 ID 換成真正 ID，同時清走重複副本 */
             const remapIds = (list) => {
                 list.forEach(item => {
                     if (idRemap[item.id]) item.id = idRemap[item.id];
                 });
+                const seen = new Map();
+                list.forEach(item => seen.set(item.id, item));
+                return Array.from(seen.values());
             };
-            remapIds(currentRecords);
-            remapIds(currentNotes);
-            remapIds(currentDrivers);
+            currentRecords = remapIds(currentRecords);
+            currentNotes = remapIds(currentNotes);
+            currentDrivers = remapIds(currentDrivers);
 
             /* 只保留仍然未儲存項目嘅 pending 標記 */
             const remainIds = new Set();
@@ -1289,7 +1291,7 @@
             startApp();
         }
     </script>
-        <style>
+    <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; -webkit-tap-highlight-color: transparent; }
         html { font-size: clamp(14px, 3.8vw, 17px); }
         body { background: #f3f4f6; padding: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)); display: flex; justify-content: center; min-height: 100vh; }
@@ -1510,7 +1512,7 @@
             <div class="header-row">
                 <div class="title-wrap">
                     <h1>的士編更系統</h1>
-                    <span class="version" id="version">V3.1</span>
+                    <span class="version" id="version">V3.2</span>
                 </div>
                 <div class="right-top">
                     <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
