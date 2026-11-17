@@ -19,7 +19,7 @@
 
         /* 以下兩行唔好改 */
         const UNLOCK_KEY = 'taxiRecordUnlocked';
-        const APP_VERSION = 'V3.2';
+        const APP_VERSION = 'V3.3';
 
         const firebaseConfig = {
             apiKey: "AIzaSyB_bNvEgF5-4m8czZSv15ZTY8-7_7LYQPg",
@@ -120,7 +120,7 @@
         const noteStart = document.getElementById('noteStart');
         const noteEnd = document.getElementById('noteEnd');
         const noteDriver = document.getElementById('noteDriver');
-        const notePhone = document.getElementById('notePhone');
+        const notePlate = document.getElementById('notePlate');
         const noteText = document.getElementById('noteText');
         const noteTitle = document.getElementById('noteTitle');
         const addNoteBtn = document.getElementById('addNoteBtn');
@@ -319,7 +319,7 @@
                 if (matches.length === 0) { dropdown.style.display = 'none'; return; }
 
                 dropdown.innerHTML = matches.map(d => `
-                    <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}">
+                    <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}" data-plate="${escapeHtml(d.plate)}">
                         <span>${escapeHtml(d.name)}</span>
                         <span class="ac-phone">${escapeHtml(d.phone)}</span>
                     </div>
@@ -329,7 +329,8 @@
                 dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
                     item.addEventListener('click', () => {
                         noteDriver.value = item.getAttribute('data-name');
-                        notePhone.value = item.getAttribute('data-phone');
+                        const p = item.getAttribute('data-plate') || '';
+                        if (p && !notePlate.value.trim()) notePlate.value = p;
                         dropdown.style.display = 'none';
                     });
                 });
@@ -485,14 +486,14 @@
             if (noteSearchEnd) filteredNotes = filteredNotes.filter(n => n.startDate && n.startDate <= noteSearchEnd);
             if (noteSearchType) {
                 filteredNotes = filteredNotes.filter(n => {
-                    const md = currentDrivers.find(d => d.name === n.driver);
+                    const md = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
                     const t = (md && md.type) ? md.type : n.type;
                     return t === noteSearchType;
                 });
             }
             if (noteSearchShift) {
                 filteredNotes = filteredNotes.filter(n => {
-                    const md = currentDrivers.find(d => d.name === n.driver);
+                    const md = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
                     const s = (md && md.shift) ? md.shift : n.shift;
                     return s === noteSearchShift;
                 });
@@ -508,14 +509,10 @@
             list.innerHTML = filteredNotes.map(n => {
                 const dates = (n.startDate && n.endDate) ? `${n.startDate} 至 ${n.endDate}` : '未設定';
 
-                let wa = '';
-                if (n.phone) {
-                    wa = `<a class="wa-btn" href="https://wa.me/${waNumber(n.phone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
-                }
+                const matchedDriver = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
 
                 let displayType = n.type || '';
                 let displayShift = n.shift || '';
-                const matchedDriver = currentDrivers.find(d => d.name === n.driver);
                 if (matchedDriver) {
                     if (matchedDriver.type) displayType = matchedDriver.type;
                     if (matchedDriver.shift) displayShift = matchedDriver.shift;
@@ -525,6 +522,22 @@
                     ? '<span class="type-tag regular">正更</span>'
                     : (displayType === '替更' ? '<span class="type-tag substitute">替更</span>' : '');
                 const shiftLabel = displayShift ? `<span class="record-shift ${displayShift}">${SHIFT_LABEL[displayShift]}</span>` : '';
+
+                /* 有司機名 → 顯示名；只有車牌 → 只顯示車牌 */
+                const nameLabel = n.driver
+                    ? `<span class="driver-name-tag">${escapeHtml(n.driver)}</span>`
+                    : (n.plate ? `<span class="record-plate">${escapeHtml(n.plate)}</span>` : '');
+
+                /* 電話：有司機名才顯示，優先取司機資料庫最新電話 */
+                let displayPhone = '';
+                if (n.driver) {
+                    displayPhone = (matchedDriver && matchedDriver.phone) ? matchedDriver.phone : (n.phone || '');
+                }
+
+                let wa = '';
+                if (displayPhone) {
+                    wa = `<a class="wa-btn" href="https://wa.me/${waNumber(displayPhone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
+                }
 
                 let daysTags = '';
                 if (n.weekdays && n.weekdays.length > 0) {
@@ -540,14 +553,14 @@
                         <div class="note-row-bottom">
                             <div class="row-left" style="flex-direction: column; align-items: flex-start; gap: 4px;">
                                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                    <span class="driver-name-tag">${escapeHtml(n.driver)}</span>
+                                    ${nameLabel}
                                     ${typeLabel}
                                     ${shiftLabel}
                                 </div>
                                 ${daysTags}
                             </div>
                             <div class="record-contact">
-                                <span class="record-phone">${n.phone ? escapeHtml(n.phone) : ''}</span>
+                                <span class="record-phone">${displayPhone ? escapeHtml(displayPhone) : ''}</span>
                                 ${wa}
                             </div>
                         </div>
@@ -709,7 +722,7 @@
             noteStart.value = n.startDate || '';
             noteEnd.value = n.endDate || '';
             noteDriver.value = n.driver || '';
-            notePhone.value = n.phone || '';
+            notePlate.value = n.plate || '';
             noteText.value = n.text || '';
 
             selectedNoteWeekdays = new Set(n.weekdays || []);
@@ -1022,33 +1035,39 @@
             noteForm.onsubmit = (e) => {
                 e.preventDefault();
                 const inputDriver = noteDriver.value.trim();
+                const inputPlate = notePlate.value.trim().toUpperCase();
 
-                if (!noteStart.value || !noteEnd.value || !inputDriver || !notePhone.value.trim() || !noteText.value.trim()) {
-                    alert('請填寫完整備註資料');
+                if (!noteStart.value || !noteEnd.value || !noteText.value.trim()) {
+                    alert('請填寫開始日期、結束日期同備註事情');
+                    return;
+                }
+                if (!inputDriver && !inputPlate) {
+                    alert('請輸入司機姓名，或者輸入車牌（最少填一樣）');
                     return;
                 }
                 if (noteEnd.value < noteStart.value) {
                     alert('結束日期唔可以早過開始日期。');
                     return;
                 }
-                if (!isPhoneOk(notePhone.value)) {
-                    alert('電話號碼格式唔啱，請輸入 8 位數字（或 852 加 8 位）。');
-                    return;
-                }
 
                 let noteType = '';
                 let noteShift = '';
-                const matchedDriver = currentDrivers.find(d => d.name === inputDriver);
-                if (matchedDriver) {
-                    if (matchedDriver.type) noteType = matchedDriver.type;
-                    if (matchedDriver.shift) noteShift = matchedDriver.shift;
+                let notePhoneVal = '';
+                if (inputDriver) {
+                    const matchedDriver = currentDrivers.find(d => d.name === inputDriver);
+                    if (matchedDriver) {
+                        if (matchedDriver.type) noteType = matchedDriver.type;
+                        if (matchedDriver.shift) noteShift = matchedDriver.shift;
+                        if (matchedDriver.phone) notePhoneVal = matchedDriver.phone;
+                    }
                 }
 
                 const data = {
                     startDate: noteStart.value,
                     endDate: noteEnd.value,
                     driver: inputDriver,
-                    phone: notePhone.value.trim(),
+                    plate: inputPlate,
+                    phone: notePhoneVal,
                     text: noteText.value.trim(),
                     type: noteType,
                     shift: noteShift,
@@ -1229,7 +1248,7 @@
             pendingChanges = failedRecords;
             pendingNoteChanges = failedNotes;
 
-            /* 修正 1：臨時 ID 換成真正 ID，同時清走重複副本 */
+            /* 臨時 ID 換成真正 ID，同時清走重複副本 */
             const remapIds = (list) => {
                 list.forEach(item => {
                     if (idRemap[item.id]) item.id = idRemap[item.id];
@@ -1349,10 +1368,11 @@
 
         .input-group { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
         .input-group label { font-size: clamp(0.75rem, 2.6vw, 0.82rem); font-weight: 600; color: #374151; margin-left: 2px; }
+        .input-group label .opt { font-weight: 400; color: #9ca3af; font-size: 0.92em; }
         .input-group input, .input-group select { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; min-width: 0; }
         .input-group input:focus, .input-group select:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
 
-        input[id="plate"], input[id="dPlate"] { text-transform: uppercase; }
+        input[id="plate"], input[id="dPlate"], input[id="notePlate"] { text-transform: uppercase; }
 
         .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; }
         .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -1466,6 +1486,7 @@
         .note-line-3 .input-group { flex: 1; min-width: 140px; }
         .note-form-card .input-group input { padding: 9px 8px; font-size: 0.85rem; }
         .note-form-card .weekday-btn { padding: 8px 2px; font-size: 0.8rem; }
+        .note-hint { font-size: 0.72rem; color: #9ca3af; margin-top: -2px; margin-bottom: 8px; line-height: 1.4; }
 
         .notes-filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; background: #f9fafb; padding: 8px; border-radius: 10px; border: 1px solid #e5e7eb; }
         .notes-filter-bar .filter-group { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: #4b5563; flex-wrap: wrap; }
@@ -1512,7 +1533,7 @@
             <div class="header-row">
                 <div class="title-wrap">
                     <h1>的士編更系統</h1>
-                    <span class="version" id="version">V3.2</span>
+                    <span class="version" id="version">V3.3</span>
                 </div>
                 <div class="right-top">
                     <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1549,7 +1570,7 @@
                                     <input type="hidden" id="phone">
                                 </div>
                                 <div class="input-group">
-                                    <label>車牌（選填）</label>
+                                    <label>車牌 <span class="opt">（選填）</span></label>
                                     <input type="text" id="plate" placeholder="AB 1234">
                                 </div>
                             </div>
@@ -1633,24 +1654,27 @@
                         </div>
 
                         <div class="input-group" style="margin-bottom: 8px;">
-                            <label>指定星期幾 (選填)</label>
+                            <label>指定星期幾 <span class="opt">（選填）</span></label>
                             <div id="noteWeekdayButtons" class="weekday-selector"></div>
                         </div>
 
                         <div class="note-line-2">
                             <div class="input-group">
-                                <label>司機姓名 (可搜尋)</label>
-                                <input type="text" id="noteDriver" placeholder="A司機" required autocomplete="off">
+                                <label>司機姓名 <span class="opt">（選填）</span></label>
+                                <input type="text" id="noteDriver" placeholder="輸入並撳選司機" autocomplete="off">
                             </div>
                             <div class="input-group">
-                                <label>電話號碼</label>
-                                <input type="tel" id="notePhone" placeholder="91234567" required>
+                                <label>車牌 <span class="opt">（選填）</span></label>
+                                <input type="text" id="notePlate" placeholder="AB 1234">
                             </div>
                         </div>
+
+                        <div class="note-hint">司機姓名同車牌最少填一樣。填咗司機會自動帶出電話同類型。</div>
+
                         <div class="note-line-3">
                             <div class="input-group">
                                 <label>備註事情</label>
-                                <input type="text" id="noteText" placeholder="放假 / 優先排更" required>
+                                <input type="text" id="noteText" placeholder="放假 / 優先排更 / 車輛維修" required>
                             </div>
                             <button type="submit" id="addNoteBtn" class="btn btn-primary" style="padding: 9px 16px; white-space: nowrap;">加入備註</button>
                             <button type="button" id="noteCancelBtn" class="btn btn-outline" style="display: none; padding: 9px 16px; white-space: nowrap;">取消修改</button>
@@ -1713,7 +1737,7 @@
                                 <div id="dShiftButtons" class="d-shift-selector"></div>
                             </div>
                             <div class="input-group" style="grid-column: 1 / -1;">
-                                <label>車牌 (選填)</label>
+                                <label>車牌 <span class="opt">（選填）</span></label>
                                 <input type="text" id="dPlate" placeholder="AB 1234">
                             </div>
                         </div>
