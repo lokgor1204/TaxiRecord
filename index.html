@@ -56,7 +56,7 @@
         const searchNoteShift = document.getElementById('searchNoteShift');
         const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
-        const APP_VERSION = 'V2.8'; 
+        const APP_VERSION = 'V2.9'; 
         versionEl.textContent = APP_VERSION;
 
         let currentRecords = [];
@@ -82,17 +82,18 @@
         let editingNoteId = null;
         let editingDriverId = null;
 
-        // 指定編更 (原司機紀錄) 表單
+        // 指定編更表單
         const form = document.getElementById('recordForm');
         const nameInput = document.getElementById('name');
-        const phoneInput = document.getElementById('phone'); // 隱藏，用嚟存電話
+        const phoneInput = document.getElementById('phone');
         const plateInput = document.getElementById('plate');
         const formTitle = document.getElementById('formTitle');
         const saveBtn = document.getElementById('saveBtn');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const resetRecordBtn = document.getElementById('resetRecordBtn'); // 重設掣
         let selectedWeekdays = new Set();
         let selectedShift = null;
-        let selectedType = null; // 自動由資料庫抓取
+        let selectedType = null; 
 
         // 備註表單
         const noteForm = document.getElementById('noteForm');
@@ -118,7 +119,10 @@
 
         const WEEKDAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
         const WEEKDAY_LABEL = { 'mon': '一', 'tue': '二', 'wed': '三', 'thu': '四', 'fri': '五', 'sat': '六', 'sun': '日' };
-        const SHIFT_LABEL = { 'morning': '早更', 'night': '夜更' };
+        
+        // 🛠️ 更新：抽走「更」字
+        const SHIFT_LABEL = { 'morning': '早', 'night': '夜', 'special': '特' };
+        const SHIFT_SELECT_LABEL = { 'morning': '早更', 'night': '夜更', 'special': '特更' };
 
         const WA_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
 
@@ -171,7 +175,6 @@
             }
         }
 
-        // 🛠️ 專為「指定編更」寫嘅自動填入（必須由名單撳落去）
         function setupRecordAutocomplete() {
             const dropdown = document.createElement('div');
             dropdown.className = 'autocomplete-dropdown';
@@ -179,7 +182,6 @@
             nameInput.parentNode.style.position = 'relative';
             nameInput.parentNode.appendChild(dropdown);
 
-            // 唔准瀏覽器自動填，強迫佢揀
             nameInput.setAttribute('autocomplete', 'off');
 
             nameInput.addEventListener('input', () => {
@@ -202,7 +204,7 @@
                     item.addEventListener('click', () => {
                         nameInput.value = item.getAttribute('data-name');
                         phoneInput.value = item.getAttribute('data-phone');
-                        selectedType = item.getAttribute('data-type'); // 自動抓取正/替更
+                        selectedType = item.getAttribute('data-type');
                         dropdown.style.display = 'none';
                     });
                 });
@@ -589,7 +591,7 @@
         function exitEditMode() {
             editingId = null;
             form.reset();
-            phoneInput.value = ''; // 清空隱藏電話
+            phoneInput.value = ''; 
             selectedWeekdays.clear(); selectedShift = null; selectedType = null;
             document.querySelectorAll('.weekday-btn, .shift-btn').forEach(b => b.classList.remove('active'));
             formTitle.textContent = '指定編更'; saveBtn.textContent = '加入新增'; cancelEditBtn.style.display = 'none';
@@ -677,8 +679,8 @@
             });
 
             const sContainer = document.getElementById('shiftButtons');
-            ['morning', 'night'].forEach(s => {
-                const b = document.createElement('button'); b.type = 'button'; b.className = 'shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_LABEL[s];
+            ['morning', 'night', 'special'].forEach(s => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_SELECT_LABEL[s];
                 b.onclick = () => { selectedShift = s; document.querySelectorAll('.shift-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
                 sContainer.appendChild(b);
             });
@@ -691,11 +693,18 @@
             });
 
             const dsContainer = document.getElementById('dShiftButtons');
-            ['morning', 'night'].forEach(s => {
-                const b = document.createElement('button'); b.type = 'button'; b.className = 'd-shift-btn shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_LABEL[s];
+            ['morning', 'night', 'special'].forEach(s => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'd-shift-btn shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_SELECT_LABEL[s];
                 b.onclick = () => { dSelectedShift = s; document.querySelectorAll('.d-shift-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); };
                 dsContainer.appendChild(b);
             });
+
+            // 🛠️ 新增：重設掣事件
+            resetRecordBtn.onclick = () => {
+                if (confirm('確定要清空所有輸入及選項嗎？')) {
+                    exitEditMode();
+                }
+            };
 
             setupRecordAutocomplete();
             setupNoteAutocomplete();
@@ -754,7 +763,6 @@
                 e.preventDefault();
                 const inputName = nameInput.value.trim();
                 
-                // 必須由名單揀選，所以要有電話同類型
                 if (!inputName || !phoneInput.value || !selectedType || selectedWeekdays.size === 0 || !selectedShift) { 
                     alert('請喺名單中撳選司機，並選擇星期幾及更別。'); 
                     return; 
@@ -830,7 +838,7 @@
                 e.preventDefault();
                 const typeBtn = document.querySelector('.d-type-btn.active');
                 const newName = dName.value.trim();
-                if (!newName || !dPhone.value.trim() || !typeBtn || !dSelectedShift) { alert('請填寫姓名、電話並選擇正/替更及早/夜更'); return; }
+                if (!newName || !dPhone.value.trim() || !typeBtn || !dSelectedShift) { alert('請填寫姓名、電話並選擇正/替更及早/夜更/特更'); return; }
                 
                 if (!editingDriverId && currentDrivers.some(d => d.name.toLowerCase() === newName.toLowerCase())) {
                     alert(`「${newName}」已經存在於司機資料庫中，請勿重複新增！`);
@@ -1007,7 +1015,7 @@
         .weekday-btn { padding: 10px 2px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.8rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
         .weekday-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
 
-        .shift-selector, .type-selector, .d-type-selector, .d-shift-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 2px; }
+        .shift-selector, .type-selector, .d-type-selector, .d-shift-selector { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 2px; }
         .shift-btn, .type-btn, .d-type-btn, .d-shift-btn { padding: 10px 8px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.82rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; }
         .shift-btn.active, .type-btn.active, .d-type-btn.active, .d-shift-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
 
@@ -1018,6 +1026,12 @@
         .btn-primary:hover { background: #111827; }
         .btn-outline { background: transparent; }
         .btn-outline:hover { background: #f3f4f6; }
+
+        /* 🛠️ 新增：重設掣 */
+        .btn-reset { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; cursor: pointer; margin-left: auto; display: block;}
+        .btn-reset:hover { background: #fef2f2; }
+        .form-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .form-title-row h2 { margin-bottom: 0; }
 
         .records-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
         .records-header h2 { font-size: clamp(0.95rem, 3.5vw, 1.1rem); font-weight: 600; color: #111827; }
@@ -1061,6 +1075,7 @@
         .record-shift { font-weight: 500; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
         .record-shift.morning { background: #fef3c7; color: #92400e; }
         .record-shift.night { background: #e5e7eb; color: #374151; }
+        .record-shift.special { background: #ffedd5; color: #c2410c; }
 
         .type-tag { font-weight: 600; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
         .type-tag.regular { background: #e0e7ff; color: #4338ca; }
@@ -1094,7 +1109,7 @@
         .record-line-1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .record-line-2 { display: block; }
         .record-line-3 { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: flex-end; }
-        .record-line-3 .shift-selector { grid-template-columns: 1fr 1fr; }
+        .record-line-3 .shift-selector { grid-template-columns: 1fr 1fr 1fr; } /* 支援三更 */
         .record-line-3 button { height: 42px; white-space: nowrap; }
 
         /* ===== 備註表單 (強制 Safari 兩格並排) ===== */
@@ -1137,7 +1152,7 @@
         <div class="header-row">
             <div class="title-wrap">
                 <h1>的士編更系統</h1>
-                <span class="version" id="version">V2.8</span>
+                <span class="version" id="version">V2.9</span>
             </div>
             <div class="right-top">
                 <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1160,7 +1175,10 @@
         <!-- 分頁 1：指定編更 -->
         <div id="panelRecords">
             <div class="form-card">
-                <h2 id="formTitle">指定編更</h2>
+                <div class="form-title-row">
+                    <h2 id="formTitle">指定編更</h2>
+                    <button type="button" id="resetRecordBtn" class="btn-reset">重設</button>
+                </div>
                 <form id="recordForm">
                     <div class="record-form-grid">
                         <!-- 第一行：司機姓名(必須搜尋) + 車牌 -->
@@ -1215,8 +1233,9 @@
                 <div class="filter-item">
                     <select id="searchRecordShift">
                         <option value="">全部更別</option>
-                        <option value="morning">早更</option>
-                        <option value="night">夜更</option>
+                        <option value="morning">早</option>
+                        <option value="night">夜</option>
+                        <option value="special">特</option>
                     </select>
                 </div>
                 <details class="wd-dropdown">
@@ -1300,8 +1319,9 @@
                     <span>更別：</span>
                     <select id="searchNoteShift">
                         <option value="">全部</option>
-                        <option value="morning">早更</option>
-                        <option value="night">夜更</option>
+                        <option value="morning">早</option>
+                        <option value="night">夜</option>
+                        <option value="special">特</option>
                     </select>
                 </div>
                 <button type="button" id="clearNoteSearchBtn" class="btn-clear">清除搜尋</button>
@@ -1331,7 +1351,7 @@
                             <div id="dTypeButtons" class="d-type-selector"></div>
                         </div>
                         <div class="input-group">
-                            <label>更別 (早更 / 夜更)</label>
+                            <label>更別 (早更 / 夜更 / 特更)</label>
                             <div id="dShiftButtons" class="d-shift-selector"></div>
                         </div>
                         <div class="input-group" style="grid-column: 1 / -1;">
