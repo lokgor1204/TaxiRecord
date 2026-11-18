@@ -19,7 +19,7 @@
 
         /* 以下兩行唔好改 */
         const UNLOCK_KEY = 'taxiRecordUnlocked';
-        const APP_VERSION = 'V3.3';
+        const APP_VERSION = 'V3.4';
 
         const firebaseConfig = {
             apiKey: "AIzaSyB_bNvEgF5-4m8czZSv15ZTY8-7_7LYQPg",
@@ -504,7 +504,34 @@
                 return;
             }
 
-            filteredNotes = filteredNotes.slice().sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+            /* ===== 按「距離今日」排序：日期範圍包含今日 → 最上 ===== */
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayMs = todayStart.getTime();
+
+            const noteDistance = (n) => {
+                const sRaw = n.startDate ? new Date(n.startDate + 'T00:00:00').getTime() : NaN;
+                const eRaw = n.endDate ? new Date(n.endDate + 'T00:00:00').getTime() : NaN;
+                const sv = isNaN(sRaw) ? null : sRaw;
+                const ev = isNaN(eRaw) ? null : eRaw;
+
+                if (sv === null && ev === null) return Number.MAX_SAFE_INTEGER;
+                if (sv !== null && ev !== null && todayMs >= sv && todayMs <= ev) return 0;
+
+                const ds = sv !== null ? Math.abs(todayMs - sv) : Infinity;
+                const de = ev !== null ? Math.abs(todayMs - ev) : Infinity;
+                return Math.min(ds, de);
+            };
+
+            filteredNotes = filteredNotes.slice().sort((a, b) => {
+                const da = noteDistance(a);
+                const db = noteDistance(b);
+                if (da !== db) return da - db;
+                const sa = a.startDate || '';
+                const sb = b.startDate || '';
+                if (sa !== sb) return sb.localeCompare(sa);
+                return toMillis(b.createdAt) - toMillis(a.createdAt);
+            });
 
             list.innerHTML = filteredNotes.map(n => {
                 const dates = (n.startDate && n.endDate) ? `${n.startDate} 至 ${n.endDate}` : '未設定';
@@ -1493,8 +1520,22 @@
         .notes-filter-bar input[type="date"], .notes-filter-bar select { padding: 6px 10px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; outline: none; background: white; max-width: 100%; }
         .notes-filter-bar input[type="date"]:focus, .notes-filter-bar select:focus { border-color: #6b7280; }
 
+        /* ===== 備註列表 ===== */
         .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
-        .note-text { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #b45309; text-align: right; word-break: break-word; }
+
+        /* 備註事情：獨立一行 + 左邊橙色粗線（方案 C） */
+        .note-row-top { flex-direction: column; align-items: flex-start; gap: 5px; }
+        .note-text {
+            font-size: clamp(0.95rem, 3.6vw, 1.1rem);
+            font-weight: 700;
+            color: #92400e;
+            border-left: 3px solid #f59e0b;
+            padding-left: 8px;
+            text-align: left;
+            word-break: break-word;
+            line-height: 1.35;
+            align-self: stretch;
+        }
 
         .note-row-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
         .note-expire { font-size: clamp(0.65rem, 2.3vw, 0.72rem); color: #9ca3af; flex: 1; }
@@ -1533,7 +1574,7 @@
             <div class="header-row">
                 <div class="title-wrap">
                     <h1>的士編更系統</h1>
-                    <span class="version" id="version">V3.3</span>
+                    <span class="version" id="version">V3.4</span>
                 </div>
                 <div class="right-top">
                     <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
