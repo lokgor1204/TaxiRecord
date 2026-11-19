@@ -1,1807 +1,1515 @@
 <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>的士編更系統 · 雲端紀錄</title>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics.js";
-        import {
-            getFirestore, collection, addDoc, deleteDoc, doc,
-            onSnapshot, updateDoc
-        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>的士編更系統 · 雲端紀錄</title>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics.js";
+import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-        /* ============================================================
-           👇 想改登入密碼，只需改下面引號裡面嘅數字
-           ============================================================ */
-        const ACCESS_PASSWORD = '5115';
+/* 👇 想改登入密碼，只需改下面引號裡面嘅數字 */
+const ACCESS_PASSWORD = '5115';
+const UNLOCK_KEY = 'taxiRecordUnlocked';
+const APP_VERSION = 'V3.5';
 
-        /* 以下兩行唔好改 */
-        const UNLOCK_KEY = 'taxiRecordUnlocked';
-        const APP_VERSION = 'V3.4';
+const firebaseConfig = {
+    apiKey: "AIzaSyB_bNvEgF5-4m8czZSv15ZTY8-7_7LYQPg",
+    authDomain: "taxirecord123.firebaseapp.com",
+    databaseURL: "https://taxirecord123-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "taxirecord123",
+    storageBucket: "taxirecord123.firebasestorage.app",
+    messagingSenderId: "23507400232",
+    appId: "1:23507400232:web:bfe1110e57b2d82b25e71d",
+    measurementId: "G-2BVTVP5W7N"
+};
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyB_bNvEgF5-4m8czZSv15ZTY8-7_7LYQPg",
-            authDomain: "taxirecord123.firebaseapp.com",
-            databaseURL: "https://taxirecord123-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "taxirecord123",
-            storageBucket: "taxirecord123.firebasestorage.app",
-            messagingSenderId: "23507400232",
-            appId: "1:23507400232:web:bfe1110e57b2d82b25e71d",
-            measurementId: "G-2BVTVP5W7N"
-        };
+const app = initializeApp(firebaseConfig);
+try { getAnalytics(app); } catch (err) { console.warn('Analytics 略過：', err); }
+const db = getFirestore(app);
 
-        const app = initializeApp(firebaseConfig);
-        // 統計功能失敗都唔可以拖死成個 APP
-        try { getAnalytics(app); } catch (err) { console.warn('Analytics 略過：', err); }
-        const db = getFirestore(app);
+const recordsCollection = collection(db, "shiftRecords");
+const notesCollection = collection(db, "shiftNotes");
+const driversCollection = collection(db, "driversData");
 
-        const recordsCollection = collection(db, "shiftRecords");
-        const notesCollection = collection(db, "shiftNotes");
-        const driversCollection = collection(db, "driversData");
+const lockScreen = document.getElementById('lockScreen');
+const lockInput = document.getElementById('lockInput');
+const lockBtn = document.getElementById('lockBtn');
+const lockError = document.getElementById('lockError');
+const appRoot = document.getElementById('appRoot');
+const lockNowBtn = document.getElementById('lockNowBtn');
+const tabRecords = document.getElementById('tabRecords');
+const tabNotes = document.getElementById('tabNotes');
+const tabDrivers = document.getElementById('tabDrivers');
+const panelRecords = document.getElementById('panelRecords');
+const panelNotes = document.getElementById('panelNotes');
+const panelDrivers = document.getElementById('panelDrivers');
+const connectionStatus = document.getElementById('connectionStatus');
+const versionEl = document.getElementById('version');
+const cloudSaveBtn = document.getElementById('cloudSaveBtn');
+const saveStatusMsg = document.getElementById('saveStatusMsg');
+const searchDriverInput = document.getElementById('searchDriver');
+const searchRecordText = document.getElementById('searchRecordText');
+const searchRecordType = document.getElementById('searchRecordType');
+const searchRecordShift = document.getElementById('searchRecordShift');
+const recordWeekdayCheckboxes = document.querySelectorAll('.record-filter-wd');
+const clearRecordSearchBtn = document.getElementById('clearRecordSearchBtn');
+const searchNoteStart = document.getElementById('searchNoteStart');
+const searchNoteEnd = document.getElementById('searchNoteEnd');
+const searchNoteType = document.getElementById('searchNoteType');
+const searchNoteShift = document.getElementById('searchNoteShift');
+const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
-        /* ================= 畫面元素 ================= */
-        const lockScreen = document.getElementById('lockScreen');
-        const lockInput = document.getElementById('lockInput');
-        const lockBtn = document.getElementById('lockBtn');
-        const lockError = document.getElementById('lockError');
-        const appRoot = document.getElementById('appRoot');
-        const lockNowBtn = document.getElementById('lockNowBtn');
+let currentRecords = [], currentNotes = [], currentDrivers = [];
+let driverSearchQuery = '', recordSearchQuery = '', recordSearchType = '', recordSearchShift = '';
+let recordSearchWeekdays = new Set();
+let noteSearchStart = '', noteSearchEnd = '', noteSearchType = '', noteSearchShift = '';
+let pendingChanges = [], pendingNoteChanges = [], pendingDriverChanges = [];
+let editingId = null, editingNoteId = null, editingDriverId = null;
+let saving = false, unsubRecords = null, unsubNotes = null, unsubDrivers = null;
 
-        const tabRecords = document.getElementById('tabRecords');
-        const tabNotes = document.getElementById('tabNotes');
-        const tabDrivers = document.getElementById('tabDrivers');
-        const panelRecords = document.getElementById('panelRecords');
-        const panelNotes = document.getElementById('panelNotes');
-        const panelDrivers = document.getElementById('panelDrivers');
+const form = document.getElementById('recordForm');
+const nameInput = document.getElementById('name');
+const phoneInput = document.getElementById('phone');
+const plateInput = document.getElementById('plate');
+const recordNote = document.getElementById('recordNote');
+const formTitle = document.getElementById('formTitle');
+const saveBtn = document.getElementById('saveBtn');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const resetRecordBtn = document.getElementById('resetRecordBtn');
+let selectedWeekdays = new Set(), selectedShift = null, selectedType = null;
 
-        const connectionStatus = document.getElementById('connectionStatus');
-        const versionEl = document.getElementById('version');
-        const cloudSaveBtn = document.getElementById('cloudSaveBtn');
-        const saveStatusMsg = document.getElementById('saveStatusMsg');
+const noteForm = document.getElementById('noteForm');
+const noteStart = document.getElementById('noteStart');
+const noteEnd = document.getElementById('noteEnd');
+const noteDriver = document.getElementById('noteDriver');
+const notePlate = document.getElementById('notePlate');
+const noteText = document.getElementById('noteText');
+const noteTitle = document.getElementById('noteTitle');
+const addNoteBtn = document.getElementById('addNoteBtn');
+const noteCancelBtn = document.getElementById('noteCancelBtn');
+let selectedNoteWeekdays = new Set();
 
-        const searchDriverInput = document.getElementById('searchDriver');
-        const searchRecordText = document.getElementById('searchRecordText');
-        const searchRecordType = document.getElementById('searchRecordType');
-        const searchRecordShift = document.getElementById('searchRecordShift');
-        const recordWeekdayCheckboxes = document.querySelectorAll('.record-filter-wd');
-        const clearRecordSearchBtn = document.getElementById('clearRecordSearchBtn');
+const driverForm = document.getElementById('driverForm');
+const dName = document.getElementById('dName');
+const dPhone = document.getElementById('dPhone');
+const dPlate = document.getElementById('dPlate');
+const driverTitle = document.getElementById('driverTitle');
+const addDriverBtn = document.getElementById('addDriverBtn');
+const driverCancelBtn = document.getElementById('driverCancelBtn');
+let dSelectedShift = null;
 
-        const searchNoteStart = document.getElementById('searchNoteStart');
-        const searchNoteEnd = document.getElementById('searchNoteEnd');
-        const searchNoteType = document.getElementById('searchNoteType');
-        const searchNoteShift = document.getElementById('searchNoteShift');
-        const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
+const WEEKDAY_ORDER = ['mon','tue','wed','thu','fri','sat','sun'];
+const WEEKDAY_LABEL = { mon:'一', tue:'二', wed:'三', thu:'四', fri:'五', sat:'六', sun:'日' };
+const SHIFT_LABEL = { morning:'早', night:'夜', special:'特' };
+const SHIFT_SELECT_LABEL = SHIFT_LABEL;
+const WA_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
 
-        /* ================= 狀態 ================= */
-        let currentRecords = [];
-        let currentNotes = [];
-        let currentDrivers = [];
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function normPhone(v) { return (v || '').replace(/[^0-9]/g, ''); }
+function isPhoneOk(v) { const c = normPhone(v); return c.length === 8 || (c.length === 11 && c.indexOf('852') === 0); }
+function waNumber(v) { const c = normPhone(v); return c.length === 8 ? '852' + c : c; }
+function toMillis(v) {
+    if (!v) return 0;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === 'number') return v;
+    const t = Date.parse(v);
+    return isNaN(t) ? 0 : t;
+}
+function pendingTotal() { return pendingChanges.length + pendingNoteChanges.length + pendingDriverChanges.length; }
 
-        let driverSearchQuery = '';
-        let recordSearchQuery = '';
-        let recordSearchType = '';
-        let recordSearchShift = '';
-        let recordSearchWeekdays = new Set();
-
-        let noteSearchStart = '';
-        let noteSearchEnd = '';
-        let noteSearchType = '';
-        let noteSearchShift = '';
-
-        let pendingChanges = [];
-        let pendingNoteChanges = [];
-        let pendingDriverChanges = [];
-
-        let editingId = null;
-        let editingNoteId = null;
-        let editingDriverId = null;
-
-        let saving = false;
-        let unsubRecords = null;
-        let unsubNotes = null;
-        let unsubDrivers = null;
-
-        /* ================= 表單元素 ================= */
-        const form = document.getElementById('recordForm');
-        const nameInput = document.getElementById('name');
-        const phoneInput = document.getElementById('phone');
-        const plateInput = document.getElementById('plate');
-        const formTitle = document.getElementById('formTitle');
-        const saveBtn = document.getElementById('saveBtn');
-        const cancelEditBtn = document.getElementById('cancelEditBtn');
-        const resetRecordBtn = document.getElementById('resetRecordBtn');
-        let selectedWeekdays = new Set();
-        let selectedShift = null;
-        let selectedType = null;
-
-        const noteForm = document.getElementById('noteForm');
-        const noteStart = document.getElementById('noteStart');
-        const noteEnd = document.getElementById('noteEnd');
-        const noteDriver = document.getElementById('noteDriver');
-        const notePlate = document.getElementById('notePlate');
-        const noteText = document.getElementById('noteText');
-        const noteTitle = document.getElementById('noteTitle');
-        const addNoteBtn = document.getElementById('addNoteBtn');
-        const noteCancelBtn = document.getElementById('noteCancelBtn');
-        let selectedNoteWeekdays = new Set();
-
-        const driverForm = document.getElementById('driverForm');
-        const dName = document.getElementById('dName');
-        const dPhone = document.getElementById('dPhone');
-        const dPlate = document.getElementById('dPlate');
-        const driverTitle = document.getElementById('driverTitle');
-        const addDriverBtn = document.getElementById('addDriverBtn');
-        const driverCancelBtn = document.getElementById('driverCancelBtn');
-        let dSelectedShift = null;
-
-        const WEEKDAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-        const WEEKDAY_LABEL = { 'mon': '一', 'tue': '二', 'wed': '三', 'thu': '四', 'fri': '五', 'sat': '六', 'sun': '日' };
-        const SHIFT_LABEL = { 'morning': '早', 'night': '夜', 'special': '特' };
-        const SHIFT_SELECT_LABEL = SHIFT_LABEL;
-
-        const WA_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
-
-        /* ================= 細工具 ================= */
-        function escapeHtml(text) {
-            if (text === null || text === undefined) return '';
-            return String(text)
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+function setStatus(type) {
+    const map = {
+        connecting: { text: '連接中…', cls: 'status-connecting' },
+        connected: { text: '已連接', cls: 'status-connected' },
+        failed: { text: '連線失敗', cls: 'status-failed' }
+    };
+    const s = map[type] || map.connecting;
+    connectionStatus.textContent = s.text;
+    connectionStatus.className = 'conn-status ' + s.cls;
+}
+function showSaveMsg(text, ok) {
+    saveStatusMsg.textContent = text;
+    saveStatusMsg.className = 'save-msg ' + (ok ? 'save-ok' : 'save-fail');
+    saveStatusMsg.style.display = 'inline-block';
+    clearTimeout(window.__saveMsgTimer);
+    window.__saveMsgTimer = setTimeout(() => { saveStatusMsg.style.display = 'none'; }, 3500);
+}
+function updatePendingIndicator() {
+    const total = pendingTotal();
+    if (saving) return;
+    if (total > 0) {
+        cloudSaveBtn.classList.add('has-pending');
+        cloudSaveBtn.textContent = `儲存 (${total})`;
+    } else {
+        cloudSaveBtn.classList.remove('has-pending');
+        cloudSaveBtn.textContent = '儲存';
+    }
+}
+function queueChange(pending, id, data) {
+    const add = pending.find(c => c.type === 'add' && c.tempId === id);
+    if (add) { Object.assign(add.data, data); return; }
+    const ex = pending.find(c => c.type === 'update' && c.id === id);
+    if (ex) { Object.assign(ex.data, data); return; }
+    pending.push({ type: 'update', id, data: Object.assign({}, data) });
+}
+function mergeWithPending(serverList, pending) {
+    const map = new Map();
+    serverList.forEach(d => map.set(d.id, Object.assign({}, d)));
+    for (const c of pending) {
+        if (c.type === 'delete') map.delete(c.id);
+        else if (c.type === 'update') {
+            const cur = map.get(c.id);
+            if (cur) map.set(c.id, Object.assign({}, cur, c.data, { _pending: true }));
         }
+    }
+    const adds = pending.filter(c => c.type === 'add').map(c => Object.assign({ id: c.tempId }, c.data, { _pending: true }));
+    return adds.concat(Array.from(map.values()));
+}
+function switchTab(tab) {
+    tabRecords.classList.remove('active');
+    tabNotes.classList.remove('active');
+    tabDrivers.classList.remove('active');
+    panelRecords.style.display = 'none';
+    panelNotes.style.display = 'none';
+    panelDrivers.style.display = 'none';
+    if (tab === 'records') {
+        tabRecords.classList.add('active');
+        panelRecords.style.display = 'block';
+    } else if (tab === 'notes') {
+        tabNotes.classList.add('active');
+        panelNotes.style.display = 'block';
+    } else {
+        tabDrivers.classList.add('active');
+        panelDrivers.style.display = 'block';
+        searchDriverInput.value = '';
+        driverSearchQuery = '';
+        renderDrivers();
+    }
+}
 
-        function normPhone(v) { return (v || '').replace(/[^0-9]/g, ''); }
+function setupRecordAutocomplete() {
+    const dropdown = document.createElement('div');
+    dropdown.className = 'autocomplete-dropdown';
+    dropdown.style.display = 'none';
+    nameInput.parentNode.style.position = 'relative';
+    nameInput.parentNode.appendChild(dropdown);
+    nameInput.setAttribute('autocomplete', 'off');
+    nameInput.addEventListener('input', () => {
+        const val = nameInput.value.trim().toLowerCase();
+        if (!val) { dropdown.style.display = 'none'; phoneInput.value = ''; selectedType = null; return; }
+        const matches = currentDrivers.filter(d => (d.name || '').toLowerCase().includes(val));
+        if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+        dropdown.innerHTML = matches.map(d => `
+            <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}" data-type="${escapeHtml(d.type)}">
+                <span>${escapeHtml(d.name)}</span><span class="ac-phone">${escapeHtml(d.phone)}</span>
+            </div>`).join('');
+        dropdown.style.display = 'block';
+        dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+                nameInput.value = item.getAttribute('data-name');
+                phoneInput.value = item.getAttribute('data-phone');
+                selectedType = item.getAttribute('data-type');
+                dropdown.style.display = 'none';
+            });
+        });
+    });
+    document.addEventListener('click', (e) => {
+        if (e.target !== nameInput && !dropdown.contains(e.target)) dropdown.style.display = 'none';
+    });
+}
 
-        function isPhoneOk(v) {
-            const c = normPhone(v);
-            return c.length === 8 || (c.length === 11 && c.indexOf('852') === 0);
+function setupNoteAutocomplete() {
+    const dropdown = document.createElement('div');
+    dropdown.className = 'autocomplete-dropdown';
+    dropdown.style.display = 'none';
+    noteDriver.parentNode.style.position = 'relative';
+    noteDriver.parentNode.appendChild(dropdown);
+    noteDriver.setAttribute('autocomplete', 'off');
+    noteDriver.addEventListener('input', () => {
+        const val = noteDriver.value.trim().toLowerCase();
+        if (!val) { dropdown.style.display = 'none'; return; }
+        const matches = currentDrivers.filter(d => (d.name || '').toLowerCase().includes(val));
+        if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+        dropdown.innerHTML = matches.map(d => `
+            <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}" data-plate="${escapeHtml(d.plate)}">
+                <span>${escapeHtml(d.name)}</span><span class="ac-phone">${escapeHtml(d.phone)}</span>
+            </div>`).join('');
+        dropdown.style.display = 'block';
+        dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+                noteDriver.value = item.getAttribute('data-name');
+                const p = item.getAttribute('data-plate') || '';
+                if (p && !notePlate.value.trim()) notePlate.value = p;
+                dropdown.style.display = 'none';
+            });
+        });
+    });
+    document.addEventListener('click', (e) => {
+        if (e.target !== noteDriver && !dropdown.contains(e.target)) dropdown.style.display = 'none';
+    });
+}
+
+function listenAll() {
+    if (unsubRecords) return;
+    setStatus('connecting');
+    unsubRecords = onSnapshot(recordsCollection, (snapshot) => {
+        const server = [];
+        snapshot.forEach(docSnap => {
+            const d = docSnap.data();
+            server.push(Object.assign({ id: docSnap.id }, d, {
+                weekdays: Array.isArray(d.weekdays) ? d.weekdays : (d.weekday ? [d.weekday] : []),
+                isStarred: !!d.isStarred
+            }));
+        });
+        currentRecords = mergeWithPending(server, pendingChanges);
+        renderRecords();
+        setStatus('connected');
+    }, (err) => { console.error(err); setStatus('failed'); });
+
+    unsubNotes = onSnapshot(notesCollection, (snapshot) => {
+        const server = [];
+        snapshot.forEach(docSnap => server.push(Object.assign({ id: docSnap.id }, docSnap.data())));
+        cleanupExpiredNotes(server);
+        currentNotes = mergeWithPending(server, pendingNoteChanges);
+        renderNotes();
+    }, (err) => { console.error(err); });
+
+    unsubDrivers = onSnapshot(driversCollection, (snapshot) => {
+        const server = [];
+        snapshot.forEach(docSnap => server.push(Object.assign({ id: docSnap.id }, docSnap.data())));
+        currentDrivers = mergeWithPending(server, pendingDriverChanges);
+        renderDrivers();
+        renderNotes();
+        renderRecords();
+    }, (err) => { console.error(err); });
+}
+function stopListeners() {
+    if (unsubRecords) { unsubRecords(); unsubRecords = null; }
+    if (unsubNotes) { unsubNotes(); unsubNotes = null; }
+    if (unsubDrivers) { unsubDrivers(); unsubDrivers = null; }
+}
+async function cleanupExpiredNotes(notes) {
+    const now = new Date();
+    const expired = notes.filter(n => {
+        if (!n.endDate) return false;
+        const end = new Date(n.endDate + 'T23:59:59');
+        return now > new Date(end.getTime() + 6 * 86400000);
+    });
+    for (const n of expired) {
+        try { await deleteDoc(doc(db, "shiftNotes", n.id)); } catch (e) { console.error(e); }
+    }
+}
+
+function renderRecords() {
+    const list = document.getElementById('recordsList');
+    let filtered = currentRecords;
+    if (recordSearchQuery) {
+        const q = recordSearchQuery.toLowerCase();
+        filtered = filtered.filter(r => (r.name || '').toLowerCase().includes(q) || (r.phone || '').includes(q));
+    }
+    if (recordSearchType) filtered = filtered.filter(r => r.type === recordSearchType);
+    if (recordSearchShift) filtered = filtered.filter(r => r.shift === recordSearchShift);
+    if (recordSearchWeekdays.size > 0) {
+        filtered = filtered.filter(r => Array.from(recordSearchWeekdays).every(day => (r.weekdays || []).includes(day)));
+    }
+    if (filtered.length === 0) {
+        list.innerHTML = `<div class="empty-message">暫時未有符合條件嘅長期備註。</div>`;
+        return;
+    }
+    const sortedRecords = filtered.slice().sort((a, b) => {
+        if (a.isStarred && !b.isStarred) return -1;
+        if (!a.isStarred && b.isStarred) return 1;
+        if (a.type === '正更' && b.type !== '正更') return -1;
+        if (a.type !== '正更' && b.type === '正更') return 1;
+        return (a.name || '').localeCompare(b.name || '', 'zh-HK');
+    });
+    list.innerHTML = sortedRecords.map(rec => {
+        const days = WEEKDAY_ORDER.filter(d => (rec.weekdays || []).includes(d)).map(d => `<span class="day-tag">${WEEKDAY_LABEL[d]}</span>`).join('');
+        const shift = SHIFT_LABEL[rec.shift] || rec.shift || '';
+        const typeLabel = rec.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
+        let displayPlate = (rec.plate || '').trim();
+        if (!displayPlate) {
+            const matchedDriver = currentDrivers.find(d => d.name === rec.name);
+            if (matchedDriver && matchedDriver.plate) displayPlate = matchedDriver.plate;
         }
-
-        function waNumber(v) {
-            const c = normPhone(v);
-            return c.length === 8 ? '852' + c : c;
-        }
-
-        function toMillis(v) {
-            if (!v) return 0;
-            if (typeof v.toMillis === 'function') return v.toMillis();
-            if (v instanceof Date) return v.getTime();
-            if (typeof v === 'number') return v;
-            const t = Date.parse(v);
-            return isNaN(t) ? 0 : t;
-        }
-
-        function pendingTotal() {
-            return pendingChanges.length + pendingNoteChanges.length + pendingDriverChanges.length;
-        }
-
-        function setStatus(type) {
-            const map = {
-                connecting: { text: '連接中…', cls: 'status-connecting' },
-                connected: { text: '已連接', cls: 'status-connected' },
-                failed: { text: '連線失敗', cls: 'status-failed' }
-            };
-            const s = map[type] || map.connecting;
-            connectionStatus.textContent = s.text;
-            connectionStatus.className = 'conn-status ' + s.cls;
-        }
-
-        function showSaveMsg(text, ok) {
-            saveStatusMsg.textContent = text;
-            saveStatusMsg.className = 'save-msg ' + (ok ? 'save-ok' : 'save-fail');
-            saveStatusMsg.style.display = 'inline-block';
-            clearTimeout(window.__saveMsgTimer);
-            window.__saveMsgTimer = setTimeout(() => { saveStatusMsg.style.display = 'none'; }, 3500);
-        }
-
-        function updatePendingIndicator() {
-            const total = pendingTotal();
-            if (saving) return;
-            if (total > 0) {
-                cloudSaveBtn.classList.add('has-pending');
-                cloudSaveBtn.textContent = `儲存 (${total})`;
-            } else {
-                cloudSaveBtn.classList.remove('has-pending');
-                cloudSaveBtn.textContent = '儲存';
-            }
-        }
-
-        /* ===== 同一個 id 只保留一條 update，資料合併而唔係覆蓋 ===== */
-        function queueChange(pending, id, data) {
-            const add = pending.find(c => c.type === 'add' && c.tempId === id);
-            if (add) { Object.assign(add.data, data); return; }
-            const ex = pending.find(c => c.type === 'update' && c.id === id);
-            if (ex) { Object.assign(ex.data, data); return; }
-            pending.push({ type: 'update', id, data: Object.assign({}, data) });
-        }
-
-        /* ===== 雲端資料同未儲存改動合併 ===== */
-        function mergeWithPending(serverList, pending) {
-            const map = new Map();
-            serverList.forEach(d => map.set(d.id, Object.assign({}, d)));
-
-            for (const c of pending) {
-                if (c.type === 'delete') {
-                    map.delete(c.id);
-                } else if (c.type === 'update') {
-                    const cur = map.get(c.id);
-                    if (cur) map.set(c.id, Object.assign({}, cur, c.data, { _pending: true }));
-                }
-            }
-
-            const adds = pending
-                .filter(c => c.type === 'add')
-                .map(c => Object.assign({ id: c.tempId }, c.data, { _pending: true }));
-
-            return adds.concat(Array.from(map.values()));
-        }
-
-        function switchTab(tab) {
-            tabRecords.classList.remove('active');
-            tabNotes.classList.remove('active');
-            tabDrivers.classList.remove('active');
-            panelRecords.style.display = 'none';
-            panelNotes.style.display = 'none';
-            panelDrivers.style.display = 'none';
-
-            if (tab === 'records') {
-                tabRecords.classList.add('active');
-                panelRecords.style.display = 'block';
-            } else if (tab === 'notes') {
-                tabNotes.classList.add('active');
-                panelNotes.style.display = 'block';
-            } else {
-                tabDrivers.classList.add('active');
-                panelDrivers.style.display = 'block';
-                searchDriverInput.value = '';
-                driverSearchQuery = '';
-                renderDrivers();
-            }
-        }
-
-        /* ================= 自動填名 ================= */
-        function setupRecordAutocomplete() {
-            const dropdown = document.createElement('div');
-            dropdown.className = 'autocomplete-dropdown';
-            dropdown.style.display = 'none';
-            nameInput.parentNode.style.position = 'relative';
-            nameInput.parentNode.appendChild(dropdown);
-
-            nameInput.setAttribute('autocomplete', 'off');
-
-            nameInput.addEventListener('input', () => {
-                const val = nameInput.value.trim().toLowerCase();
-                if (!val) { dropdown.style.display = 'none'; phoneInput.value = ''; selectedType = null; return; }
-
-                const matches = currentDrivers.filter(d => (d.name || '').toLowerCase().includes(val));
-                if (matches.length === 0) { dropdown.style.display = 'none'; return; }
-
-                dropdown.innerHTML = matches.map(d => `
-                    <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}" data-type="${escapeHtml(d.type)}">
-                        <span>${escapeHtml(d.name)}</span>
-                        <span class="ac-phone">${escapeHtml(d.phone)}</span>
+        const plateLabel = displayPlate ? `<span class="record-plate">${escapeHtml(displayPlate)}</span>` : '';
+        const recNote = (rec.note || '').trim();
+        const noteTag = recNote ? `<span class="note-tag">${escapeHtml(recNote)}</span>` : '';
+        let wa = '';
+        if (rec.phone) wa = `<a class="wa-btn" href="https://wa.me/${waNumber(rec.phone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
+        const starBtn = rec.isStarred
+            ? `<button class="star-btn starred" onclick="toggleStar('${rec.id}')">★</button>`
+            : `<button class="star-btn" onclick="toggleStar('${rec.id}')">☆</button>`;
+        return `
+            <div class="record-item ${rec._pending ? 'pending' : ''}" data-id="${rec.id}">
+                <div class="record-row-top">
+                    <div class="row-left">
+                        ${starBtn}
+                        <span class="driver-name-tag">${escapeHtml(rec.name)}</span>
+                        ${typeLabel}
+                        <span class="record-shift ${rec.shift}">${shift}</span>
+                        ${plateLabel}
                     </div>
-                `).join('');
-                dropdown.style.display = 'block';
-
-                dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        nameInput.value = item.getAttribute('data-name');
-                        phoneInput.value = item.getAttribute('data-phone');
-                        selectedType = item.getAttribute('data-type');
-                        dropdown.style.display = 'none';
-                    });
-                });
-            });
-
-            document.addEventListener('click', (e) => {
-                if (e.target !== nameInput && !dropdown.contains(e.target)) {
-                    dropdown.style.display = 'none';
-                }
-            });
-        }
-
-        function setupNoteAutocomplete() {
-            const dropdown = document.createElement('div');
-            dropdown.className = 'autocomplete-dropdown';
-            dropdown.style.display = 'none';
-            noteDriver.parentNode.style.position = 'relative';
-            noteDriver.parentNode.appendChild(dropdown);
-
-            noteDriver.setAttribute('autocomplete', 'off');
-
-            noteDriver.addEventListener('input', () => {
-                const val = noteDriver.value.trim().toLowerCase();
-                if (!val) { dropdown.style.display = 'none'; return; }
-
-                const matches = currentDrivers.filter(d => (d.name || '').toLowerCase().includes(val));
-                if (matches.length === 0) { dropdown.style.display = 'none'; return; }
-
-                dropdown.innerHTML = matches.map(d => `
-                    <div class="autocomplete-item" data-name="${escapeHtml(d.name)}" data-phone="${escapeHtml(d.phone)}" data-plate="${escapeHtml(d.plate)}">
-                        <span>${escapeHtml(d.name)}</span>
-                        <span class="ac-phone">${escapeHtml(d.phone)}</span>
+                    <div class="record-contact">
+                        <span class="record-phone">${escapeHtml(rec.phone)}</span>
+                        ${wa}
                     </div>
-                `).join('');
-                dropdown.style.display = 'block';
-
-                dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        noteDriver.value = item.getAttribute('data-name');
-                        const p = item.getAttribute('data-plate') || '';
-                        if (p && !notePlate.value.trim()) notePlate.value = p;
-                        dropdown.style.display = 'none';
-                    });
-                });
-            });
-
-            document.addEventListener('click', (e) => {
-                if (e.target !== noteDriver && !dropdown.contains(e.target)) {
-                    dropdown.style.display = 'none';
-                }
-            });
-        }
-
-        /* ================= 讀取雲端 ================= */
-        function listenAll() {
-            if (unsubRecords) return;
-            setStatus('connecting');
-
-            unsubRecords = onSnapshot(recordsCollection, (snapshot) => {
-                const server = [];
-                snapshot.forEach(docSnap => {
-                    const d = docSnap.data();
-                    server.push(Object.assign({ id: docSnap.id }, d, {
-                        weekdays: Array.isArray(d.weekdays) ? d.weekdays : (d.weekday ? [d.weekday] : []),
-                        isStarred: !!d.isStarred
-                    }));
-                });
-                currentRecords = mergeWithPending(server, pendingChanges);
-                renderRecords();
-                setStatus('connected');
-            }, (err) => { console.error(err); setStatus('failed'); });
-
-            unsubNotes = onSnapshot(notesCollection, (snapshot) => {
-                const server = [];
-                snapshot.forEach(docSnap => server.push(Object.assign({ id: docSnap.id }, docSnap.data())));
-                cleanupExpiredNotes(server);
-                currentNotes = mergeWithPending(server, pendingNoteChanges);
-                renderNotes();
-            }, (err) => { console.error(err); });
-
-            unsubDrivers = onSnapshot(driversCollection, (snapshot) => {
-                const server = [];
-                snapshot.forEach(docSnap => server.push(Object.assign({ id: docSnap.id }, docSnap.data())));
-                currentDrivers = mergeWithPending(server, pendingDriverChanges);
-                renderDrivers();
-                renderNotes();
-                renderRecords();
-            }, (err) => { console.error(err); });
-        }
-
-        function stopListeners() {
-            if (unsubRecords) { unsubRecords(); unsubRecords = null; }
-            if (unsubNotes) { unsubNotes(); unsubNotes = null; }
-            if (unsubDrivers) { unsubDrivers(); unsubDrivers = null; }
-        }
-
-        async function cleanupExpiredNotes(notes) {
-            const now = new Date();
-            const expired = notes.filter(n => {
-                if (!n.endDate) return false;
-                const end = new Date(n.endDate + 'T23:59:59');
-                return now > new Date(end.getTime() + 6 * 86400000);
-            });
-            for (const n of expired) {
-                try { await deleteDoc(doc(db, "shiftNotes", n.id)); } catch (e) { console.error(e); }
-            }
-        }
-
-        /* ================= 列表畫面 ================= */
-        function renderRecords() {
-            const list = document.getElementById('recordsList');
-
-            let filtered = currentRecords;
-            if (recordSearchQuery) {
-                const q = recordSearchQuery.toLowerCase();
-                filtered = filtered.filter(r => (r.name || '').toLowerCase().includes(q) || (r.phone || '').includes(q));
-            }
-            if (recordSearchType) filtered = filtered.filter(r => r.type === recordSearchType);
-            if (recordSearchShift) filtered = filtered.filter(r => r.shift === recordSearchShift);
-            if (recordSearchWeekdays.size > 0) {
-                filtered = filtered.filter(r => Array.from(recordSearchWeekdays).every(day => (r.weekdays || []).includes(day)));
-            }
-
-            if (filtered.length === 0) {
-                list.innerHTML = `<div class="empty-message">暫時未有符合條件嘅指定編更。</div>`;
-                return;
-            }
-
-            const sortedRecords = filtered.slice().sort((a, b) => {
-                if (a.isStarred && !b.isStarred) return -1;
-                if (!a.isStarred && b.isStarred) return 1;
-                if (a.type === '正更' && b.type !== '正更') return -1;
-                if (a.type !== '正更' && b.type === '正更') return 1;
-                return (a.name || '').localeCompare(b.name || '', 'zh-HK');
-            });
-
-            list.innerHTML = sortedRecords.map(rec => {
-                const days = WEEKDAY_ORDER.filter(d => (rec.weekdays || []).includes(d))
-                    .map(d => `<span class="day-tag">${WEEKDAY_LABEL[d]}</span>`).join('');
-                const shift = SHIFT_LABEL[rec.shift] || rec.shift || '';
-                const typeLabel = rec.type === '正更'
-                    ? '<span class="type-tag regular">正更</span>'
-                    : '<span class="type-tag substitute">替更</span>';
-
-                /* 以紀錄自己嘅車牌為先，冇才用司機資料庫嘅 */
-                let displayPlate = (rec.plate || '').trim();
-                if (!displayPlate) {
-                    const matchedDriver = currentDrivers.find(d => d.name === rec.name);
-                    if (matchedDriver && matchedDriver.plate) displayPlate = matchedDriver.plate;
-                }
-                const plateLabel = displayPlate ? `<span class="record-plate">${escapeHtml(displayPlate)}</span>` : '';
-
-                let wa = '';
-                if (rec.phone) {
-                    wa = `<a class="wa-btn" href="https://wa.me/${waNumber(rec.phone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
-                }
-
-                const starBtn = rec.isStarred
-                    ? `<button class="star-btn starred" onclick="toggleStar('${rec.id}')">★</button>`
-                    : `<button class="star-btn" onclick="toggleStar('${rec.id}')">☆</button>`;
-
-                return `
-                    <div class="record-item ${rec._pending ? 'pending' : ''}" data-id="${rec.id}">
-                        <div class="record-row-top">
-                            <div class="row-left">
-                                ${starBtn}
-                                <span class="driver-name-tag">${escapeHtml(rec.name)}</span>
-                                ${typeLabel}
-                                <span class="record-shift ${rec.shift}">${shift}</span>
-                                ${plateLabel}
-                            </div>
-                            <div class="record-contact">
-                                <span class="record-phone">${escapeHtml(rec.phone)}</span>
-                                ${wa}
-                            </div>
-                        </div>
-                        <div class="record-row-bottom">
-                            <div class="days-tags">${days || '<span class="day-tag empty">未設定</span>'}</div>
-                            <div class="record-actions">
-                                <button class="edit-btn" onclick="enterEditMode('${rec.id}')">修改</button>
-                                <button class="delete-btn" onclick="queueDelete('${rec.id}')">刪除</button>
-                            </div>
-                        </div>
+                </div>
+                <div class="record-row-bottom">
+                    <div class="record-bottom-left">
+                        <div class="days-tags">${days || '<span class="day-tag empty">未設定</span>'}</div>
+                        ${noteTag}
                     </div>
-                `;
-            }).join('');
-        }
-
-        function renderNotes() {
-            const list = document.getElementById('notesList');
-
-            let filteredNotes = currentNotes;
-            if (noteSearchStart) filteredNotes = filteredNotes.filter(n => n.endDate && n.endDate >= noteSearchStart);
-            if (noteSearchEnd) filteredNotes = filteredNotes.filter(n => n.startDate && n.startDate <= noteSearchEnd);
-            if (noteSearchType) {
-                filteredNotes = filteredNotes.filter(n => {
-                    const md = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
-                    const t = (md && md.type) ? md.type : n.type;
-                    return t === noteSearchType;
-                });
-            }
-            if (noteSearchShift) {
-                filteredNotes = filteredNotes.filter(n => {
-                    const md = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
-                    const s = (md && md.shift) ? md.shift : n.shift;
-                    return s === noteSearchShift;
-                });
-            }
-
-            if (filteredNotes.length === 0) {
-                list.innerHTML = `<div class="empty-message">冇符合條件嘅備註。</div>`;
-                return;
-            }
-
-            /* ===== 按「距離今日」排序：日期範圍包含今日 → 最上 ===== */
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            const todayMs = todayStart.getTime();
-
-            const noteDistance = (n) => {
-                const sRaw = n.startDate ? new Date(n.startDate + 'T00:00:00').getTime() : NaN;
-                const eRaw = n.endDate ? new Date(n.endDate + 'T00:00:00').getTime() : NaN;
-                const sv = isNaN(sRaw) ? null : sRaw;
-                const ev = isNaN(eRaw) ? null : eRaw;
-
-                if (sv === null && ev === null) return Number.MAX_SAFE_INTEGER;
-                if (sv !== null && ev !== null && todayMs >= sv && todayMs <= ev) return 0;
-
-                const ds = sv !== null ? Math.abs(todayMs - sv) : Infinity;
-                const de = ev !== null ? Math.abs(todayMs - ev) : Infinity;
-                return Math.min(ds, de);
-            };
-
-            filteredNotes = filteredNotes.slice().sort((a, b) => {
-                const da = noteDistance(a);
-                const db = noteDistance(b);
-                if (da !== db) return da - db;
-                const sa = a.startDate || '';
-                const sb = b.startDate || '';
-                if (sa !== sb) return sb.localeCompare(sa);
-                return toMillis(b.createdAt) - toMillis(a.createdAt);
-            });
-
-            list.innerHTML = filteredNotes.map(n => {
-                const dates = (n.startDate && n.endDate) ? `${n.startDate} 至 ${n.endDate}` : '未設定';
-
-                const matchedDriver = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
-
-                let displayType = n.type || '';
-                let displayShift = n.shift || '';
-                if (matchedDriver) {
-                    if (matchedDriver.type) displayType = matchedDriver.type;
-                    if (matchedDriver.shift) displayShift = matchedDriver.shift;
-                }
-
-                const typeLabel = displayType === '正更'
-                    ? '<span class="type-tag regular">正更</span>'
-                    : (displayType === '替更' ? '<span class="type-tag substitute">替更</span>' : '');
-                const shiftLabel = displayShift ? `<span class="record-shift ${displayShift}">${SHIFT_LABEL[displayShift]}</span>` : '';
-
-                /* 有司機名 → 顯示名；只有車牌 → 只顯示車牌 */
-                const nameLabel = n.driver
-                    ? `<span class="driver-name-tag">${escapeHtml(n.driver)}</span>`
-                    : (n.plate ? `<span class="record-plate">${escapeHtml(n.plate)}</span>` : '');
-
-                /* 電話：有司機名才顯示，優先取司機資料庫最新電話 */
-                let displayPhone = '';
-                if (n.driver) {
-                    displayPhone = (matchedDriver && matchedDriver.phone) ? matchedDriver.phone : (n.phone || '');
-                }
-
-                let wa = '';
-                if (displayPhone) {
-                    wa = `<a class="wa-btn" href="https://wa.me/${waNumber(displayPhone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
-                }
-
-                let daysTags = '';
-                if (n.weekdays && n.weekdays.length > 0) {
-                    daysTags = `<div class="days-tags" style="margin-top: 4px;">${WEEKDAY_ORDER.filter(d => n.weekdays.includes(d)).map(d => `<span class="day-tag" style="background:#fce7f3; color:#be185d;">${WEEKDAY_LABEL[d]}</span>`).join('')}</div>`;
-                }
-
-                return `
-                    <div class="note-item ${n._pending ? 'pending' : ''}" data-id="${n.id}">
-                        <div class="note-row-top">
-                            <span class="note-date">${dates}</span>
-                            <span class="note-text">${escapeHtml(n.text)}</span>
-                        </div>
-                        <div class="note-row-bottom">
-                            <div class="row-left" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-                                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                    ${nameLabel}
-                                    ${typeLabel}
-                                    ${shiftLabel}
-                                </div>
-                                ${daysTags}
-                            </div>
-                            <div class="record-contact">
-                                <span class="record-phone">${displayPhone ? escapeHtml(displayPhone) : ''}</span>
-                                ${wa}
-                            </div>
-                        </div>
-                        <div class="note-row-footer">
-                            <span class="note-expire">自動刪除：${getExpireHint(n.endDate)}</span>
-                            <div class="record-actions">
-                                <button class="edit-btn" onclick="enterNoteEditMode('${n.id}')">修改</button>
-                                <button class="delete-btn" onclick="queueDeleteNote('${n.id}')">刪除</button>
-                            </div>
-                        </div>
+                    <div class="record-actions">
+                        <button class="edit-btn" onclick="enterEditMode('${rec.id}')">修改</button>
+                        <button class="delete-btn" onclick="queueDelete('${rec.id}')">刪除</button>
                     </div>
-                `;
-            }).join('');
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function renderNotes() {
+    const list = document.getElementById('notesList');
+    let filteredNotes = currentNotes;
+    if (noteSearchStart) filteredNotes = filteredNotes.filter(n => n.endDate && n.endDate >= noteSearchStart);
+    if (noteSearchEnd) filteredNotes = filteredNotes.filter(n => n.startDate && n.startDate <= noteSearchEnd);
+    if (noteSearchType) {
+        filteredNotes = filteredNotes.filter(n => {
+            const md = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
+            const t = (md && md.type) ? md.type : n.type;
+            return t === noteSearchType;
+        });
+    }
+    if (noteSearchShift) {
+        filteredNotes = filteredNotes.filter(n => {
+            const md = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
+            const s = (md && md.shift) ? md.shift : n.shift;
+            return s === noteSearchShift;
+        });
+    }
+    if (filteredNotes.length === 0) {
+        list.innerHTML = `<div class="empty-message">冇符合條件嘅短期備註。</div>`;
+        return;
+    }
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
+    const noteDistance = (n) => {
+        const sRaw = n.startDate ? new Date(n.startDate + 'T00:00:00').getTime() : NaN;
+        const eRaw = n.endDate ? new Date(n.endDate + 'T00:00:00').getTime() : NaN;
+        const sv = isNaN(sRaw) ? null : sRaw;
+        const ev = isNaN(eRaw) ? null : eRaw;
+        if (sv === null && ev === null) return Number.MAX_SAFE_INTEGER;
+        if (sv !== null && ev !== null && todayMs >= sv && todayMs <= ev) return 0;
+        const ds = sv !== null ? Math.abs(todayMs - sv) : Infinity;
+        const de = ev !== null ? Math.abs(todayMs - ev) : Infinity;
+        return Math.min(ds, de);
+    };
+    filteredNotes = filteredNotes.slice().sort((a, b) => {
+        const da = noteDistance(a), db = noteDistance(b);
+        if (da !== db) return da - db;
+        const sa = a.startDate || '', sb = b.startDate || '';
+        if (sa !== sb) return sb.localeCompare(sa);
+        return toMillis(b.createdAt) - toMillis(a.createdAt);
+    });
+    list.innerHTML = filteredNotes.map(n => {
+        const dates = (n.startDate && n.endDate) ? `${n.startDate} 至 ${n.endDate}` : '未設定';
+        const matchedDriver = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
+        let displayType = n.type || '', displayShift = n.shift || '';
+        if (matchedDriver) {
+            if (matchedDriver.type) displayType = matchedDriver.type;
+            if (matchedDriver.shift) displayShift = matchedDriver.shift;
         }
-
-        function renderDrivers() {
-            const list = document.getElementById('driversList');
-
-            let filtered = currentDrivers.slice();
-            if (driverSearchQuery) {
-                const q = driverSearchQuery.toLowerCase();
-                filtered = currentDrivers.filter(d =>
-                    (d.name || '').toLowerCase().includes(q) ||
-                    (d.phone || '').includes(q) ||
-                    (d.plate || '').toLowerCase().includes(q)
-                );
-            }
-
-            if (filtered.length === 0) {
-                list.innerHTML = `<div class="empty-message">${driverSearchQuery ? '搵唔到符合嘅司機' : '暫時未有司機資料'}</div>`;
-                return;
-            }
-
-            filtered.sort((a, b) => {
-                const pA = normPhone(a.phone);
-                const pB = normPhone(b.phone);
-                if (!pA && pB) return 1;
-                if (pA && !pB) return -1;
-                return pA.localeCompare(pB);
-            });
-
-            list.innerHTML = filtered.map(d => {
-                const typeLabel = d.type === '正更'
-                    ? '<span class="type-tag regular">正更</span>'
-                    : '<span class="type-tag substitute">替更</span>';
-                const shiftLabel = d.shift ? `<span class="record-shift ${d.shift}">${SHIFT_LABEL[d.shift]}</span>` : '';
-                const plateLabel = d.plate ? `<span class="record-plate">${escapeHtml(d.plate)}</span>` : '';
-
-                let wa = '';
-                if (d.phone) {
-                    wa = `<a class="wa-btn" href="https://wa.me/${waNumber(d.phone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
-                }
-
-                return `
-                    <div class="driver-item ${d._pending ? 'pending' : ''}">
-                        <div class="row-left driver-left">
-                            <span class="driver-name-tag">${escapeHtml(d.name)}</span>
+        const typeLabel = displayType === '正更'
+            ? '<span class="type-tag regular">正更</span>'
+            : (displayType === '替更' ? '<span class="type-tag substitute">替更</span>' : '');
+        const shiftLabel = displayShift ? `<span class="record-shift ${displayShift}">${SHIFT_LABEL[displayShift]}</span>` : '';
+        const nameLabel = n.driver
+            ? `<span class="driver-name-tag">${escapeHtml(n.driver)}</span>`
+            : (n.plate ? `<span class="record-plate">${escapeHtml(n.plate)}</span>` : '');
+        let displayPhone = '';
+        if (n.driver) displayPhone = (matchedDriver && matchedDriver.phone) ? matchedDriver.phone : (n.phone || '');
+        let wa = '';
+        if (displayPhone) wa = `<a class="wa-btn" href="https://wa.me/${waNumber(displayPhone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
+        let daysTags = '';
+        if (n.weekdays && n.weekdays.length > 0) {
+            daysTags = `<div class="days-tags" style="margin-top:4px;">${WEEKDAY_ORDER.filter(d => n.weekdays.includes(d)).map(d => `<span class="day-tag" style="background:#fce7f3;color:#be185d;">${WEEKDAY_LABEL[d]}</span>`).join('')}</div>`;
+        }
+        return `
+            <div class="note-item ${n._pending ? 'pending' : ''}" data-id="${n.id}">
+                <div class="note-row-top">
+                    <span class="note-date">${dates}</span>
+                    <span class="note-text">${escapeHtml(n.text)}</span>
+                </div>
+                <div class="note-row-bottom">
+                    <div class="row-left" style="flex-direction:column;align-items:flex-start;gap:4px;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            ${nameLabel}
                             ${typeLabel}
                             ${shiftLabel}
-                            ${plateLabel}
                         </div>
-                        <div class="driver-right">
-                            <span class="driver-phone">${escapeHtml(d.phone)}</span>
-                            ${wa}
-                        </div>
-                        <div class="record-actions">
-                            <button class="edit-btn" onclick="enterDriverEditMode('${d.id}')">修改</button>
-                            <button class="delete-btn" onclick="queueDeleteDriver('${d.id}')">刪除</button>
-                        </div>
+                        ${daysTags}
                     </div>
-                `;
-            }).join('');
-        }
+                    <div class="record-contact">
+                        <span class="record-phone">${displayPhone ? escapeHtml(displayPhone) : ''}</span>
+                        ${wa}
+                    </div>
+                </div>
+                <div class="note-row-footer">
+                    <span class="note-expire">自動刪除：${getExpireHint(n.endDate)}</span>
+                    <div class="record-actions">
+                        <button class="edit-btn" onclick="enterNoteEditMode('${n.id}')">修改</button>
+                        <button class="delete-btn" onclick="queueDeleteNote('${n.id}')">刪除</button>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+}
 
-        function getExpireHint(endDate) {
-            if (!endDate) return '-';
-            const end = new Date(endDate + 'T23:59:59');
-            const exp = new Date(end.getTime() + 6 * 86400000);
-            return `${exp.getFullYear()}-${String(exp.getMonth() + 1).padStart(2, '0')}-${String(exp.getDate()).padStart(2, '0')}`;
-        }
+function renderDrivers() {
+    const list = document.getElementById('driversList');
+    let filtered = currentDrivers.slice();
+    if (driverSearchQuery) {
+        const q = driverSearchQuery.toLowerCase();
+        filtered = currentDrivers.filter(d =>
+            (d.name || '').toLowerCase().includes(q) ||
+            (d.phone || '').includes(q) ||
+            (d.plate || '').toLowerCase().includes(q));
+    }
+    if (filtered.length === 0) {
+        list.innerHTML = `<div class="empty-message">${driverSearchQuery ? '搵唔到符合嘅司機' : '暫時未有司機資料'}</div>`;
+        return;
+    }
+    filtered.sort((a, b) => {
+        const pA = normPhone(a.phone), pB = normPhone(b.phone);
+        if (!pA && pB) return 1;
+        if (pA && !pB) return -1;
+        return pA.localeCompare(pB);
+    });
+    list.innerHTML = filtered.map(d => {
+        const typeLabel = d.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
+        const shiftLabel = d.shift ? `<span class="record-shift ${d.shift}">${SHIFT_LABEL[d.shift]}</span>` : '';
+        const plateLabel = d.plate ? `<span class="record-plate">${escapeHtml(d.plate)}</span>` : '';
+        let wa = '';
+        if (d.phone) wa = `<a class="wa-btn" href="https://wa.me/${waNumber(d.phone)}" target="_blank" rel="noopener noreferrer">${WA_ICON}</a>`;
+        return `
+            <div class="driver-item ${d._pending ? 'pending' : ''}">
+                <div class="row-left driver-left">
+                    <span class="driver-name-tag">${escapeHtml(d.name)}</span>
+                    ${typeLabel}
+                    ${shiftLabel}
+                    ${plateLabel}
+                </div>
+                <div class="driver-right">
+                    <span class="driver-phone">${escapeHtml(d.phone)}</span>
+                    ${wa}
+                </div>
+                <div class="record-actions">
+                    <button class="edit-btn" onclick="enterDriverEditMode('${d.id}')">修改</button>
+                    <button class="delete-btn" onclick="queueDeleteDriver('${d.id}')">刪除</button>
+                </div>
+            </div>`;
+    }).join('');
+}
 
-        /* ================= 星標 / 刪除 / 修改 ================= */
-        window.toggleStar = (id) => {
-            const idx = currentRecords.findIndex(r => r.id === id);
-            if (idx === -1) return;
-            const newStarred = !currentRecords[idx].isStarred;
-            currentRecords[idx].isStarred = newStarred;
-            currentRecords[idx]._pending = true;
-            queueChange(pendingChanges, id, { isStarred: newStarred });
+function getExpireHint(endDate) {
+    if (!endDate) return '-';
+    const end = new Date(endDate + 'T23:59:59');
+    const exp = new Date(end.getTime() + 6 * 86400000);
+    return `${exp.getFullYear()}-${String(exp.getMonth()+1).padStart(2,'0')}-${String(exp.getDate()).padStart(2,'0')}`;
+}
+
+window.toggleStar = (id) => {
+    const idx = currentRecords.findIndex(r => r.id === id);
+    if (idx === -1) return;
+    const newStarred = !currentRecords[idx].isStarred;
+    currentRecords[idx].isStarred = newStarred;
+    currentRecords[idx]._pending = true;
+    queueChange(pendingChanges, id, { isStarred: newStarred });
+    renderRecords();
+    updatePendingIndicator();
+};
+
+window.queueDelete = (id) => {
+    if (!confirm('確定刪除？(需撳儲存)')) return;
+    const pAdd = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === id);
+    if (pAdd !== -1) pendingChanges.splice(pAdd, 1);
+    else {
+        pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === id));
+        pendingChanges.push({ type: 'delete', id });
+    }
+    currentRecords = currentRecords.filter(r => r.id !== id);
+    renderRecords();
+    updatePendingIndicator();
+    if (editingId === id) exitEditMode();
+};
+
+window.enterEditMode = (id) => {
+    const r = currentRecords.find(x => x.id === id);
+    if (!r) return;
+    editingId = id;
+    nameInput.value = r.name || '';
+    phoneInput.value = r.phone || '';
+    plateInput.value = r.plate || '';
+    recordNote.value = r.note || '';
+    selectedType = r.type || null;
+    selectedWeekdays = new Set(r.weekdays || []);
+    document.querySelectorAll('.weekday-btn').forEach(b => b.classList.toggle('active', selectedWeekdays.has(b.dataset.day)));
+    selectedShift = r.shift || null;
+    document.querySelectorAll('.shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === selectedShift));
+    formTitle.textContent = '修改長期備註';
+    saveBtn.textContent = '加入修改';
+    cancelEditBtn.style.display = 'inline-block';
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+function exitEditMode() {
+    editingId = null;
+    form.reset();
+    phoneInput.value = '';
+    selectedWeekdays.clear();
+    selectedShift = null;
+    selectedType = null;
+    document.querySelectorAll('.weekday-btn, .shift-btn').forEach(b => b.classList.remove('active'));
+    formTitle.textContent = '長期備註';
+    saveBtn.textContent = '加入新增';
+    cancelEditBtn.style.display = 'none';
+}
+
+window.queueDeleteNote = (id) => {
+    if (!confirm('確定刪除？(需撳儲存)')) return;
+    const pAdd = pendingNoteChanges.findIndex(c => c.type === 'add' && c.tempId === id);
+    if (pAdd !== -1) pendingNoteChanges.splice(pAdd, 1);
+    else {
+        pendingNoteChanges = pendingNoteChanges.filter(c => !(c.type === 'update' && c.id === id));
+        pendingNoteChanges.push({ type: 'delete', id });
+    }
+    currentNotes = currentNotes.filter(n => n.id !== id);
+    renderNotes();
+    updatePendingIndicator();
+    if (editingNoteId === id) exitNoteEditMode();
+};
+
+window.enterNoteEditMode = (id) => {
+    const n = currentNotes.find(x => x.id === id);
+    if (!n) return;
+    editingNoteId = id;
+    noteStart.value = n.startDate || '';
+    noteEnd.value = n.endDate || '';
+    noteDriver.value = n.driver || '';
+    notePlate.value = n.plate || '';
+    noteText.value = n.text || '';
+    selectedNoteWeekdays = new Set(n.weekdays || []);
+    document.querySelectorAll('.note-weekday-btn').forEach(b => {
+        b.classList.toggle('active', selectedNoteWeekdays.has(b.dataset.day));
+    });
+    noteTitle.textContent = '修改短期備註';
+    addNoteBtn.textContent = '加入修改';
+    noteCancelBtn.style.display = 'inline-block';
+    noteForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+function exitNoteEditMode() {
+    editingNoteId = null;
+    noteForm.reset();
+    selectedNoteWeekdays.clear();
+    document.querySelectorAll('.note-weekday-btn').forEach(b => b.classList.remove('active'));
+    noteTitle.textContent = '新增短期備註';
+    addNoteBtn.textContent = '加入短期備註';
+    noteCancelBtn.style.display = 'none';
+}
+
+window.queueDeleteDriver = (id) => {
+    if (!confirm('確定刪除？(需撳儲存)')) return;
+    const pAdd = pendingDriverChanges.findIndex(c => c.type === 'add' && c.tempId === id);
+    if (pAdd !== -1) pendingDriverChanges.splice(pAdd, 1);
+    else {
+        pendingDriverChanges = pendingDriverChanges.filter(c => !(c.type === 'update' && c.id === id));
+        pendingDriverChanges.push({ type: 'delete', id });
+    }
+    currentDrivers = currentDrivers.filter(d => d.id !== id);
+    renderDrivers();
+    updatePendingIndicator();
+    if (editingDriverId === id) exitDriverEditMode();
+};
+
+window.enterDriverEditMode = (id) => {
+    const d = currentDrivers.find(x => x.id === id);
+    if (!d) return;
+    editingDriverId = id;
+    dName.value = d.name || '';
+    dPhone.value = d.phone || '';
+    dPlate.value = d.plate || '';
+    document.querySelectorAll('.d-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === d.type));
+    dSelectedShift = d.shift || null;
+    document.querySelectorAll('.d-shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === dSelectedShift));
+    driverTitle.textContent = '修改司機資料';
+    addDriverBtn.textContent = '加入修改';
+    driverCancelBtn.style.display = 'inline-block';
+    driverForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+function exitDriverEditMode() {
+    editingDriverId = null;
+    driverForm.reset();
+    document.querySelectorAll('.d-type-btn, .d-shift-btn').forEach(b => b.classList.remove('active'));
+    dSelectedShift = null;
+    driverTitle.textContent = '新增司機資料';
+    addDriverBtn.textContent = '加入資料';
+    driverCancelBtn.style.display = 'none';
+}
+
+let unlockedInMemory = false;
+function readUnlocked() {
+    try { return localStorage.getItem(UNLOCK_KEY) === '1'; }
+    catch (e) { return unlockedInMemory; }
+}
+function saveUnlocked() {
+    unlockedInMemory = true;
+    try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+}
+function clearUnlocked() {
+    unlockedInMemory = false;
+    try { localStorage.removeItem(UNLOCK_KEY); } catch (e) {}
+}
+function showLockScreen() {
+    appRoot.style.display = 'none';
+    lockScreen.style.display = 'flex';
+    lockInput.value = '';
+    lockError.style.display = 'none';
+    setTimeout(() => { try { lockInput.focus(); } catch (e) {} }, 150);
+}
+function unlockApp() {
+    saveUnlocked();
+    lockScreen.style.display = 'none';
+    appRoot.style.display = 'block';
+    listenAll();
+}
+function tryUnlock() {
+    if (lockInput.value === ACCESS_PASSWORD) {
+        lockError.style.display = 'none';
+        unlockApp();
+    } else {
+        lockError.style.display = 'block';
+        lockInput.value = '';
+        lockInput.focus();
+    }
+}
+
+function buildControls() {
+    const wContainer = document.getElementById('weekdayButtons');
+    WEEKDAY_ORDER.forEach(d => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'weekday-btn'; b.dataset.day = d; b.textContent = WEEKDAY_LABEL[d];
+        b.onclick = () => {
+            if (selectedWeekdays.has(d)) { selectedWeekdays.delete(d); b.classList.remove('active'); }
+            else { selectedWeekdays.add(d); b.classList.add('active'); }
+        };
+        wContainer.appendChild(b);
+    });
+
+    const nwContainer = document.getElementById('noteWeekdayButtons');
+    WEEKDAY_ORDER.forEach(d => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'weekday-btn note-weekday-btn'; b.dataset.day = d; b.textContent = WEEKDAY_LABEL[d];
+        b.onclick = () => {
+            if (selectedNoteWeekdays.has(d)) { selectedNoteWeekdays.delete(d); b.classList.remove('active'); }
+            else { selectedNoteWeekdays.add(d); b.classList.add('active'); }
+        };
+        nwContainer.appendChild(b);
+    });
+
+    const sContainer = document.getElementById('shiftButtons');
+    ['morning','night','special'].forEach(s => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_SELECT_LABEL[s];
+        b.onclick = () => {
+            selectedShift = s;
+            document.querySelectorAll('.shift-btn').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+        };
+        sContainer.appendChild(b);
+    });
+
+    const dtContainer = document.getElementById('dTypeButtons');
+    ['正更','替更'].forEach(t => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'd-type-btn'; b.dataset.type = t; b.textContent = t;
+        b.onclick = () => {
+            document.querySelectorAll('.d-type-btn').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+        };
+        dtContainer.appendChild(b);
+    });
+
+    const dsContainer = document.getElementById('dShiftButtons');
+    ['morning','night','special'].forEach(s => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'd-shift-btn shift-btn'; b.dataset.shift = s; b.textContent = SHIFT_SELECT_LABEL[s];
+        b.onclick = () => {
+            dSelectedShift = s;
+            document.querySelectorAll('.d-shift-btn').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+        };
+        dsContainer.appendChild(b);
+    });
+}
+
+function wireEvents() {
+    lockBtn.onclick = tryUnlock;
+    lockInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnlock(); } });
+
+    lockNowBtn.onclick = () => {
+        if (pendingTotal() > 0) {
+            if (!confirm(`仲有 ${pendingTotal()} 項改動未儲存，鎖定後會全部消失。\n確定要鎖定？`)) return;
+            pendingChanges = []; pendingNoteChanges = []; pendingDriverChanges = [];
+        }
+        clearUnlocked();
+        stopListeners();
+        location.reload();
+    };
+
+    resetRecordBtn.onclick = () => {
+        if (confirm('確定要清空所有輸入及選項嗎？')) exitEditMode();
+    };
+
+    setupRecordAutocomplete();
+    setupNoteAutocomplete();
+
+    searchDriverInput.addEventListener('input', (e) => { driverSearchQuery = e.target.value.trim(); renderDrivers(); });
+    searchRecordText.addEventListener('input', (e) => { recordSearchQuery = e.target.value.trim(); renderRecords(); });
+    searchRecordType.addEventListener('change', (e) => { recordSearchType = e.target.value; renderRecords(); });
+    searchRecordShift.addEventListener('change', (e) => { recordSearchShift = e.target.value; renderRecords(); });
+    recordWeekdayCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) recordSearchWeekdays.add(cb.value);
+            else recordSearchWeekdays.delete(cb.value);
             renderRecords();
-            updatePendingIndicator();
+        });
+    });
+    clearRecordSearchBtn.addEventListener('click', () => {
+        searchRecordText.value = ''; searchRecordType.value = ''; searchRecordShift.value = '';
+        recordWeekdayCheckboxes.forEach(cb => { cb.checked = false; });
+        recordSearchQuery = ''; recordSearchType = ''; recordSearchShift = '';
+        recordSearchWeekdays.clear();
+        renderRecords();
+    });
+
+    searchNoteStart.addEventListener('input', (e) => { noteSearchStart = e.target.value; renderNotes(); });
+    searchNoteEnd.addEventListener('input', (e) => { noteSearchEnd = e.target.value; renderNotes(); });
+    searchNoteType.addEventListener('change', (e) => { noteSearchType = e.target.value; renderNotes(); });
+    searchNoteShift.addEventListener('change', (e) => { noteSearchShift = e.target.value; renderNotes(); });
+    clearNoteSearchBtn.addEventListener('click', () => {
+        searchNoteStart.value = ''; searchNoteEnd.value = ''; searchNoteType.value = ''; searchNoteShift.value = '';
+        noteSearchStart = ''; noteSearchEnd = ''; noteSearchType = ''; noteSearchShift = '';
+        renderNotes();
+    });
+
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('details.wd-dropdown[open]').forEach(d => {
+            if (!d.contains(e.target)) d.removeAttribute('open');
+        });
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (pendingTotal() > 0) { e.preventDefault(); e.returnValue = ''; return ''; }
+    });
+
+    form.onsubmit = (e) => {
+        e.preventDefault();
+        const inputName = nameInput.value.trim();
+        if (!inputName || !phoneInput.value || !selectedType || !selectedShift) {
+            alert('請喺名單中撳選司機，並選擇更別。（星期幾可以唔揀）');
+            return;
+        }
+        if (!isPhoneOk(phoneInput.value)) {
+            alert('呢位司機嘅電話號碼唔完整（要 8 位數字），請先去「司機資料」改正。');
+            return;
+        }
+        if (!editingId && currentRecords.some(r => (r.name || '').toLowerCase() === inputName.toLowerCase())) {
+            alert(`「${inputName}」已經存在於長期備註中，請勿重複新增！`);
+            return;
+        }
+        const data = {
+            name: inputName,
+            phone: phoneInput.value,
+            plate: plateInput.value.trim().toUpperCase(),
+            note: recordNote.value.trim(),
+            weekdays: Array.from(selectedWeekdays),
+            shift: selectedShift,
+            type: selectedType
         };
-
-        window.queueDelete = (id) => {
-            if (!confirm('確定刪除？(需撳儲存)')) return;
-            const pAdd = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === id);
-            if (pAdd !== -1) {
-                pendingChanges.splice(pAdd, 1);
-            } else {
-                pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === id));
-                pendingChanges.push({ type: 'delete', id });
-            }
-            currentRecords = currentRecords.filter(r => r.id !== id);
-            renderRecords();
-            updatePendingIndicator();
-            if (editingId === id) exitEditMode();
-        };
-
-        window.enterEditMode = (id) => {
-            const r = currentRecords.find(x => x.id === id);
-            if (!r) return;
-            editingId = id;
-            nameInput.value = r.name || '';
-            phoneInput.value = r.phone || '';
-            plateInput.value = r.plate || '';
-            selectedType = r.type || null;
-            selectedWeekdays = new Set(r.weekdays || []);
-            document.querySelectorAll('.weekday-btn').forEach(b => b.classList.toggle('active', selectedWeekdays.has(b.dataset.day)));
-            selectedShift = r.shift || null;
-            document.querySelectorAll('.shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === selectedShift));
-            formTitle.textContent = '修改指定編更';
-            saveBtn.textContent = '加入修改';
-            cancelEditBtn.style.display = 'inline-block';
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        };
-
-        function exitEditMode() {
-            editingId = null;
-            form.reset();
-            phoneInput.value = '';
-            selectedWeekdays.clear();
-            selectedShift = null;
-            selectedType = null;
-            document.querySelectorAll('.weekday-btn, .shift-btn').forEach(b => b.classList.remove('active'));
-            formTitle.textContent = '指定編更';
-            saveBtn.textContent = '加入新增';
-            cancelEditBtn.style.display = 'none';
-        }
-
-        window.queueDeleteNote = (id) => {
-            if (!confirm('確定刪除？(需撳儲存)')) return;
-            const pAdd = pendingNoteChanges.findIndex(c => c.type === 'add' && c.tempId === id);
-            if (pAdd !== -1) {
-                pendingNoteChanges.splice(pAdd, 1);
-            } else {
-                pendingNoteChanges = pendingNoteChanges.filter(c => !(c.type === 'update' && c.id === id));
-                pendingNoteChanges.push({ type: 'delete', id });
-            }
-            currentNotes = currentNotes.filter(n => n.id !== id);
-            renderNotes();
-            updatePendingIndicator();
-            if (editingNoteId === id) exitNoteEditMode();
-        };
-
-        window.enterNoteEditMode = (id) => {
-            const n = currentNotes.find(x => x.id === id);
-            if (!n) return;
-            editingNoteId = id;
-            noteStart.value = n.startDate || '';
-            noteEnd.value = n.endDate || '';
-            noteDriver.value = n.driver || '';
-            notePlate.value = n.plate || '';
-            noteText.value = n.text || '';
-
-            selectedNoteWeekdays = new Set(n.weekdays || []);
-            document.querySelectorAll('.note-weekday-btn').forEach(b => {
-                b.classList.toggle('active', selectedNoteWeekdays.has(b.dataset.day));
-            });
-
-            noteTitle.textContent = '修改備註';
-            addNoteBtn.textContent = '加入修改';
-            noteCancelBtn.style.display = 'inline-block';
-            noteForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        };
-
-        function exitNoteEditMode() {
-            editingNoteId = null;
-            noteForm.reset();
-            selectedNoteWeekdays.clear();
-            document.querySelectorAll('.note-weekday-btn').forEach(b => b.classList.remove('active'));
-            noteTitle.textContent = '新增備註';
-            addNoteBtn.textContent = '加入備註';
-            noteCancelBtn.style.display = 'none';
-        }
-
-        window.queueDeleteDriver = (id) => {
-            if (!confirm('確定刪除？(需撳儲存)')) return;
-            const pAdd = pendingDriverChanges.findIndex(c => c.type === 'add' && c.tempId === id);
-            if (pAdd !== -1) {
-                pendingDriverChanges.splice(pAdd, 1);
-            } else {
-                pendingDriverChanges = pendingDriverChanges.filter(c => !(c.type === 'update' && c.id === id));
-                pendingDriverChanges.push({ type: 'delete', id });
-            }
-            currentDrivers = currentDrivers.filter(d => d.id !== id);
-            renderDrivers();
-            updatePendingIndicator();
-            if (editingDriverId === id) exitDriverEditMode();
-        };
-
-        window.enterDriverEditMode = (id) => {
-            const d = currentDrivers.find(x => x.id === id);
-            if (!d) return;
-            editingDriverId = id;
-            dName.value = d.name || '';
-            dPhone.value = d.phone || '';
-            dPlate.value = d.plate || '';
-            document.querySelectorAll('.d-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === d.type));
-            dSelectedShift = d.shift || null;
-            document.querySelectorAll('.d-shift-btn').forEach(b => b.classList.toggle('active', b.dataset.shift === dSelectedShift));
-            driverTitle.textContent = '修改司機資料';
-            addDriverBtn.textContent = '加入修改';
-            driverCancelBtn.style.display = 'inline-block';
-            driverForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        };
-
-        function exitDriverEditMode() {
-            editingDriverId = null;
-            driverForm.reset();
-            document.querySelectorAll('.d-type-btn, .d-shift-btn').forEach(b => b.classList.remove('active'));
-            dSelectedShift = null;
-            driverTitle.textContent = '新增司機資料';
-            addDriverBtn.textContent = '加入資料';
-            driverCancelBtn.style.display = 'none';
-        }
-
-        /* ================= 密碼閘 ================= */
-        let unlockedInMemory = false;
-
-        function readUnlocked() {
-            try { return localStorage.getItem(UNLOCK_KEY) === '1'; }
-            catch (e) { return unlockedInMemory; }
-        }
-
-        function saveUnlocked() {
-            unlockedInMemory = true;
-            try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) { /* 無痕模式 */ }
-        }
-
-        function clearUnlocked() {
-            unlockedInMemory = false;
-            try { localStorage.removeItem(UNLOCK_KEY); } catch (e) { /* ignore */ }
-        }
-
-        function showLockScreen() {
-            appRoot.style.display = 'none';
-            lockScreen.style.display = 'flex';
-            lockInput.value = '';
-            lockError.style.display = 'none';
-            setTimeout(() => { try { lockInput.focus(); } catch (e) {} }, 150);
-        }
-
-        function unlockApp() {
-            saveUnlocked();
-            lockScreen.style.display = 'none';
-            appRoot.style.display = 'block';
-            listenAll();
-        }
-
-        function tryUnlock() {
-            if (lockInput.value === ACCESS_PASSWORD) {
-                lockError.style.display = 'none';
-                unlockApp();
-            } else {
-                lockError.style.display = 'block';
-                lockInput.value = '';
-                lockInput.focus();
-            }
-        }
-
-        /* ================= 建立按鈕 / 綁定事件 ================= */
-        function buildControls() {
-            const wContainer = document.getElementById('weekdayButtons');
-            WEEKDAY_ORDER.forEach(d => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'weekday-btn';
-                b.dataset.day = d;
-                b.textContent = WEEKDAY_LABEL[d];
-                b.onclick = () => {
-                    if (selectedWeekdays.has(d)) { selectedWeekdays.delete(d); b.classList.remove('active'); }
-                    else { selectedWeekdays.add(d); b.classList.add('active'); }
-                };
-                wContainer.appendChild(b);
-            });
-
-            const nwContainer = document.getElementById('noteWeekdayButtons');
-            WEEKDAY_ORDER.forEach(d => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'weekday-btn note-weekday-btn';
-                b.dataset.day = d;
-                b.textContent = WEEKDAY_LABEL[d];
-                b.onclick = () => {
-                    if (selectedNoteWeekdays.has(d)) { selectedNoteWeekdays.delete(d); b.classList.remove('active'); }
-                    else { selectedNoteWeekdays.add(d); b.classList.add('active'); }
-                };
-                nwContainer.appendChild(b);
-            });
-
-            const sContainer = document.getElementById('shiftButtons');
-            ['morning', 'night', 'special'].forEach(s => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'shift-btn';
-                b.dataset.shift = s;
-                b.textContent = SHIFT_SELECT_LABEL[s];
-                b.onclick = () => {
-                    selectedShift = s;
-                    document.querySelectorAll('.shift-btn').forEach(x => x.classList.remove('active'));
-                    b.classList.add('active');
-                };
-                sContainer.appendChild(b);
-            });
-
-            const dtContainer = document.getElementById('dTypeButtons');
-            ['正更', '替更'].forEach(t => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'd-type-btn';
-                b.dataset.type = t;
-                b.textContent = t;
-                b.onclick = () => {
-                    document.querySelectorAll('.d-type-btn').forEach(x => x.classList.remove('active'));
-                    b.classList.add('active');
-                };
-                dtContainer.appendChild(b);
-            });
-
-            const dsContainer = document.getElementById('dShiftButtons');
-            ['morning', 'night', 'special'].forEach(s => {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'd-shift-btn shift-btn';
-                b.dataset.shift = s;
-                b.textContent = SHIFT_SELECT_LABEL[s];
-                b.onclick = () => {
-                    dSelectedShift = s;
-                    document.querySelectorAll('.d-shift-btn').forEach(x => x.classList.remove('active'));
-                    b.classList.add('active');
-                };
-                dsContainer.appendChild(b);
-            });
-        }
-
-        function wireEvents() {
-            /* 密碼閘 */
-            lockBtn.onclick = tryUnlock;
-            lockInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); tryUnlock(); } });
-
-            /* 鎖定掣 */
-            lockNowBtn.onclick = () => {
-                if (pendingTotal() > 0) {
-                    if (!confirm(`仲有 ${pendingTotal()} 項改動未儲存，鎖定後會全部消失。\n確定要鎖定？`)) return;
-                    pendingChanges = [];
-                    pendingNoteChanges = [];
-                    pendingDriverChanges = [];
-                }
-                clearUnlocked();
-                stopListeners();
-                location.reload();
-            };
-
-            resetRecordBtn.onclick = () => {
-                if (confirm('確定要清空所有輸入及選項嗎？')) exitEditMode();
-            };
-
-            setupRecordAutocomplete();
-            setupNoteAutocomplete();
-
-            searchDriverInput.addEventListener('input', (e) => {
-                driverSearchQuery = e.target.value.trim();
-                renderDrivers();
-            });
-
-            searchRecordText.addEventListener('input', (e) => { recordSearchQuery = e.target.value.trim(); renderRecords(); });
-            searchRecordType.addEventListener('change', (e) => { recordSearchType = e.target.value; renderRecords(); });
-            searchRecordShift.addEventListener('change', (e) => { recordSearchShift = e.target.value; renderRecords(); });
-
-            recordWeekdayCheckboxes.forEach(cb => {
-                cb.addEventListener('change', () => {
-                    if (cb.checked) recordSearchWeekdays.add(cb.value);
-                    else recordSearchWeekdays.delete(cb.value);
-                    renderRecords();
-                });
-            });
-
-            clearRecordSearchBtn.addEventListener('click', () => {
-                searchRecordText.value = '';
-                searchRecordType.value = '';
-                searchRecordShift.value = '';
-                recordWeekdayCheckboxes.forEach(cb => { cb.checked = false; });
-                recordSearchQuery = '';
-                recordSearchType = '';
-                recordSearchShift = '';
-                recordSearchWeekdays.clear();
-                renderRecords();
-            });
-
-            searchNoteStart.addEventListener('input', (e) => { noteSearchStart = e.target.value; renderNotes(); });
-            searchNoteEnd.addEventListener('input', (e) => { noteSearchEnd = e.target.value; renderNotes(); });
-            searchNoteType.addEventListener('change', (e) => { noteSearchType = e.target.value; renderNotes(); });
-            searchNoteShift.addEventListener('change', (e) => { noteSearchShift = e.target.value; renderNotes(); });
-
-            clearNoteSearchBtn.addEventListener('click', () => {
-                searchNoteStart.value = '';
-                searchNoteEnd.value = '';
-                searchNoteType.value = '';
-                searchNoteShift.value = '';
-                noteSearchStart = '';
-                noteSearchEnd = '';
-                noteSearchType = '';
-                noteSearchShift = '';
-                renderNotes();
-            });
-
-            /* 撳外面自動收合「星期幾」下拉 */
-            document.addEventListener('click', (e) => {
-                document.querySelectorAll('details.wd-dropdown[open]').forEach(d => {
-                    if (!d.contains(e.target)) d.removeAttribute('open');
-                });
-            });
-
-            /* 未儲存就關頁面 → 警告 */
-            window.addEventListener('beforeunload', (e) => {
-                if (pendingTotal() > 0) { e.preventDefault(); e.returnValue = ''; return ''; }
-            });
-
-            /* ===== 指定編更 提交 ===== */
-            form.onsubmit = (e) => {
-                e.preventDefault();
-                const inputName = nameInput.value.trim();
-
-                if (!inputName || !phoneInput.value || !selectedType || selectedWeekdays.size === 0 || !selectedShift) {
-                    alert('請喺名單中撳選司機，並選擇星期幾及更別。');
-                    return;
-                }
-                if (!isPhoneOk(phoneInput.value)) {
-                    alert('呢位司機嘅電話號碼唔完整（要 8 位數字），請先去「司機資料」改正。');
-                    return;
-                }
-                if (!editingId && currentRecords.some(r => (r.name || '').toLowerCase() === inputName.toLowerCase())) {
-                    alert(`「${inputName}」已經存在於指定編更中，請勿重複新增！`);
-                    return;
-                }
-
-                const data = {
-                    name: inputName,
-                    phone: phoneInput.value,
-                    plate: plateInput.value.trim().toUpperCase(),
-                    weekdays: Array.from(selectedWeekdays),
-                    shift: selectedShift,
-                    type: selectedType
-                };
-
-                if (editingId) {
-                    const idx = currentRecords.findIndex(r => r.id === editingId);
-                    if (idx !== -1) currentRecords[idx] = Object.assign({}, currentRecords[idx], data, { _pending: true });
-                    queueChange(pendingChanges, editingId, data);
-                } else {
-                    const tempId = 'temp_' + Date.now();
-                    currentRecords.unshift(Object.assign({ id: tempId }, data, { isStarred: false, _pending: true, createdAt: new Date() }));
-                    pendingChanges.push({ type: 'add', tempId, data: Object.assign({}, data, { isStarred: false }) });
-                }
-                renderRecords();
-                updatePendingIndicator();
-                exitEditMode();
-                showSaveMsg('已加入暫存', true);
-            };
-
-            /* ===== 備註 提交 ===== */
-            noteForm.onsubmit = (e) => {
-                e.preventDefault();
-                const inputDriver = noteDriver.value.trim();
-                const inputPlate = notePlate.value.trim().toUpperCase();
-
-                if (!noteStart.value || !noteEnd.value || !noteText.value.trim()) {
-                    alert('請填寫開始日期、結束日期同備註事情');
-                    return;
-                }
-                if (!inputDriver && !inputPlate) {
-                    alert('請輸入司機姓名，或者輸入車牌（最少填一樣）');
-                    return;
-                }
-                if (noteEnd.value < noteStart.value) {
-                    alert('結束日期唔可以早過開始日期。');
-                    return;
-                }
-
-                let noteType = '';
-                let noteShift = '';
-                let notePhoneVal = '';
-                if (inputDriver) {
-                    const matchedDriver = currentDrivers.find(d => d.name === inputDriver);
-                    if (matchedDriver) {
-                        if (matchedDriver.type) noteType = matchedDriver.type;
-                        if (matchedDriver.shift) noteShift = matchedDriver.shift;
-                        if (matchedDriver.phone) notePhoneVal = matchedDriver.phone;
-                    }
-                }
-
-                const data = {
-                    startDate: noteStart.value,
-                    endDate: noteEnd.value,
-                    driver: inputDriver,
-                    plate: inputPlate,
-                    phone: notePhoneVal,
-                    text: noteText.value.trim(),
-                    type: noteType,
-                    shift: noteShift,
-                    weekdays: Array.from(selectedNoteWeekdays)
-                };
-
-                if (editingNoteId) {
-                    const idx = currentNotes.findIndex(n => n.id === editingNoteId);
-                    if (idx !== -1) currentNotes[idx] = Object.assign({}, currentNotes[idx], data, { _pending: true });
-                    queueChange(pendingNoteChanges, editingNoteId, data);
-                } else {
-                    const tempId = 'note_' + Date.now();
-                    currentNotes.unshift(Object.assign({ id: tempId }, data, { _pending: true, createdAt: new Date() }));
-                    pendingNoteChanges.push({ type: 'add', tempId, data: Object.assign({}, data) });
-                }
-                renderNotes();
-                updatePendingIndicator();
-                exitNoteEditMode();
-                showSaveMsg('已加入暫存', true);
-            };
-
-            /* ===== 司機資料 提交 ===== */
-            driverForm.onsubmit = (e) => {
-                e.preventDefault();
-                const typeBtn = document.querySelector('.d-type-btn.active');
-                const newName = dName.value.trim();
-
-                if (!newName || !dPhone.value.trim() || !typeBtn || !dSelectedShift) {
-                    alert('請填寫姓名、電話，並選擇類型（正/替）及更別（早/夜/特）');
-                    return;
-                }
-                if (!isPhoneOk(dPhone.value)) {
-                    alert('電話號碼格式唔啱，請輸入 8 位數字（或 852 加 8 位）。');
-                    return;
-                }
-                if (!editingDriverId && currentDrivers.some(d => (d.name || '').toLowerCase() === newName.toLowerCase())) {
-                    alert(`「${newName}」已經存在於司機資料庫中，請勿重複新增！`);
-                    return;
-                }
-
-                const data = {
-                    name: newName,
-                    phone: dPhone.value.trim(),
-                    plate: dPlate.value.trim().toUpperCase(),
-                    type: typeBtn.dataset.type,
-                    shift: dSelectedShift
-                };
-
-                if (editingDriverId) {
-                    const oldDriver = currentDrivers.find(d => d.id === editingDriverId);
-                    const oldName = oldDriver ? oldDriver.name : '';
-
-                    const idx = currentDrivers.findIndex(d => d.id === editingDriverId);
-                    if (idx !== -1) currentDrivers[idx] = Object.assign({}, currentDrivers[idx], data, { _pending: true });
-                    queueChange(pendingDriverChanges, editingDriverId, data);
-
-                    if (oldName && oldName !== newName) {
-                        currentRecords.forEach(r => {
-                            if (r.name === oldName) {
-                                r.name = newName;
-                                r._pending = true;
-                                queueChange(pendingChanges, r.id, { name: newName });
-                            }
-                        });
-                        renderRecords();
-
-                        currentNotes.forEach(n => {
-                            if (n.driver === oldName) {
-                                n.driver = newName;
-                                n._pending = true;
-                                queueChange(pendingNoteChanges, n.id, { driver: newName });
-                            }
-                        });
-                        renderNotes();
-                    }
-                } else {
-                    const tempId = 'd_' + Date.now();
-                    currentDrivers.unshift(Object.assign({ id: tempId }, data, { _pending: true, createdAt: new Date() }));
-                    pendingDriverChanges.push({ type: 'add', tempId, data: Object.assign({}, data) });
-                }
-
-                renderDrivers();
-                updatePendingIndicator();
-                exitDriverEditMode();
-                showSaveMsg('已加入暫存', true);
-            };
-
-            cancelEditBtn.onclick = () => exitEditMode();
-            noteCancelBtn.onclick = () => exitNoteEditMode();
-            driverCancelBtn.onclick = () => exitDriverEditMode();
-
-            tabRecords.onclick = () => switchTab('records');
-            tabNotes.onclick = () => switchTab('notes');
-            tabDrivers.onclick = () => switchTab('drivers');
-
-            cloudSaveBtn.onclick = handleSave;
-        }
-
-        /* ================= 儲存 ================= */
-        async function handleSave() {
-            const total = pendingTotal();
-            if (total === 0) { showSaveMsg('冇改動需要儲存', true); return; }
-            if (saving) return;
-
-            saving = true;
-            cloudSaveBtn.disabled = true;
-            cloudSaveBtn.textContent = '儲存中…';
-
-            const failedDrivers = [];
-            const failedRecords = [];
-            const failedNotes = [];
-            const idRemap = {};
-            let sCount = 0;
-            let fCount = 0;
-            let fMsg = '';
-
-            const handleError = (e) => {
-                fCount++;
-                fMsg = (e && e.message) ? e.message : String(e);
-            };
-
-            /* 1) 司機 */
-            for (const c of pendingDriverChanges) {
-                try {
-                    if (c.type === 'add') {
-                        const ref = await addDoc(driversCollection, Object.assign({}, c.data, { createdAt: new Date() }));
-                        idRemap[c.tempId] = ref.id;
-                    } else if (c.type === 'update') {
-                        await updateDoc(doc(db, "driversData", c.id), c.data);
-                    } else if (c.type === 'delete') {
-                        await deleteDoc(doc(db, "driversData", c.id));
-                    }
-                    sCount++;
-                } catch (e) {
-                    if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') { sCount++; }
-                    else { handleError(e); failedDrivers.push(c); }
-                }
-            }
-
-            /* 2) 編更 */
-            for (const c of pendingChanges) {
-                try {
-                    if (c.type === 'add') {
-                        const ref = await addDoc(recordsCollection, Object.assign({}, c.data, { createdAt: new Date() }));
-                        idRemap[c.tempId] = ref.id;
-                    } else if (c.type === 'update') {
-                        await updateDoc(doc(db, "shiftRecords", c.id), c.data);
-                    } else if (c.type === 'delete') {
-                        await deleteDoc(doc(db, "shiftRecords", c.id));
-                    }
-                    sCount++;
-                } catch (e) {
-                    if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') { sCount++; }
-                    else { handleError(e); failedRecords.push(c); }
-                }
-            }
-
-            /* 3) 備註 */
-            for (const c of pendingNoteChanges) {
-                try {
-                    if (c.type === 'add') {
-                        const ref = await addDoc(notesCollection, Object.assign({}, c.data, { createdAt: new Date() }));
-                        idRemap[c.tempId] = ref.id;
-                    } else if (c.type === 'update') {
-                        await updateDoc(doc(db, "shiftNotes", c.id), c.data);
-                    } else if (c.type === 'delete') {
-                        await deleteDoc(doc(db, "shiftNotes", c.id));
-                    }
-                    sCount++;
-                } catch (e) {
-                    if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') { sCount++; }
-                    else { handleError(e); failedNotes.push(c); }
-                }
-            }
-
-            /* 只保留失敗項目，成功嘅唔會再重複寫一次 */
-            pendingDriverChanges = failedDrivers;
-            pendingChanges = failedRecords;
-            pendingNoteChanges = failedNotes;
-
-            /* 臨時 ID 換成真正 ID，同時清走重複副本 */
-            const remapIds = (list) => {
-                list.forEach(item => {
-                    if (idRemap[item.id]) item.id = idRemap[item.id];
-                });
-                const seen = new Map();
-                list.forEach(item => seen.set(item.id, item));
-                return Array.from(seen.values());
-            };
-            currentRecords = remapIds(currentRecords);
-            currentNotes = remapIds(currentNotes);
-            currentDrivers = remapIds(currentDrivers);
-
-            /* 只保留仍然未儲存項目嘅 pending 標記 */
-            const remainIds = new Set();
-            pendingChanges.forEach(c => remainIds.add(c.type === 'add' ? c.tempId : c.id));
-            pendingNoteChanges.forEach(c => remainIds.add(c.type === 'add' ? c.tempId : c.id));
-            pendingDriverChanges.forEach(c => remainIds.add(c.type === 'add' ? c.tempId : c.id));
-
-            [currentRecords, currentNotes, currentDrivers].forEach(list => {
-                list.forEach(item => {
-                    if (!remainIds.has(item.id)) delete item._pending;
-                });
-            });
-
-            saving = false;
-            cloudSaveBtn.disabled = false;
-            updatePendingIndicator();
-
-            if (fCount === 0) {
-                showSaveMsg(`儲存成功 (${sCount} 項)`, true);
-            } else {
-                showSaveMsg(`有 ${fCount} 項儲存失敗，其餘已成功`, false);
-                console.error('儲存失敗原因：', fMsg);
-            }
-
-            renderRecords();
-            renderNotes();
-            renderDrivers();
-        }
-
-        /* ================= 啟動 ================= */
-        function startApp() {
-            versionEl.textContent = APP_VERSION;
-            buildControls();
-            wireEvents();
-
-            if (readUnlocked()) {
-                lockScreen.style.display = 'none';
-                appRoot.style.display = 'block';
-                listenAll();
-            } else {
-                showLockScreen();
-            }
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', startApp);
+        if (editingId) {
+            const idx = currentRecords.findIndex(r => r.id === editingId);
+            if (idx !== -1) currentRecords[idx] = Object.assign({}, currentRecords[idx], data, { _pending: true });
+            queueChange(pendingChanges, editingId, data);
         } else {
-            startApp();
+            const tempId = 'temp_' + Date.now();
+            currentRecords.unshift(Object.assign({ id: tempId }, data, { isStarred: false, _pending: true, createdAt: new Date() }));
+            pendingChanges.push({ type: 'add', tempId, data: Object.assign({}, data, { isStarred: false }) });
         }
-    </script>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; -webkit-tap-highlight-color: transparent; }
-        html { font-size: clamp(14px, 3.8vw, 17px); }
-        body { background: #f3f4f6; padding: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)); display: flex; justify-content: center; min-height: 100vh; }
+        renderRecords();
+        updatePendingIndicator();
+        exitEditMode();
+        showSaveMsg('已加入暫存', true);
+    };
 
-        /* ===== 密碼閘 ===== */
-        .lock-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: #f3f4f6; z-index: 9999; }
-        .lock-card { width: 100%; max-width: 340px; background: white; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 28px 22px; text-align: center; }
-        .lock-card h1 { font-size: clamp(1.1rem, 4.6vw, 1.3rem); font-weight: 600; color: #111827; margin-bottom: 6px; }
-        .lock-card p { font-size: 0.82rem; color: #6b7280; margin-bottom: 18px; }
-        .lock-card input { width: 100%; padding: 12px; font-size: 1.15rem; text-align: center; letter-spacing: 8px; border-radius: 8px; border: 1px solid #d1d5db; outline: none; font-family: inherit; -webkit-appearance: none; }
-        .lock-card input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
-        .lock-btn { margin-top: 14px; width: 100%; padding: 12px; border-radius: 8px; border: none; background: #1f2937; color: white; font-size: 0.95rem; font-weight: 600; cursor: pointer; touch-action: manipulation; }
-        .lock-btn:hover { background: #111827; }
-        .lock-error { display: none; margin-top: 12px; font-size: 0.78rem; font-weight: 600; color: #b91c1c; background: #fee2e2; padding: 7px 10px; border-radius: 6px; }
-
-        /* ===== 主體 ===== */
-        .container { max-width: 800px; width: 100%; background: white; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: clamp(16px, 4vw, 24px) clamp(12px, 3.5vw, 20px); height: fit-content; }
-
-        .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-        .title-wrap { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-        h1 { font-size: clamp(1.2rem, 5vw, 1.5rem); font-weight: 600; color: #111827; }
-        .version { font-size: clamp(0.7rem, 2.6vw, 0.8rem); font-weight: 600; color: #6b7280; background: #f3f4f6; padding: 2px 8px; border-radius: 6px; }
-
-        .right-top { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-        .conn-status { font-size: clamp(0.7rem, 2.5vw, 0.78rem); font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
-        .status-connecting { background: #fef3c7; color: #92400e; }
-        .status-connected { background: #dcfce7; color: #166534; }
-        .status-failed { background: #fee2e2; color: #b91c1c; }
-
-        .save-row { display: flex; align-items: center; gap: 6px; }
-        .cloud-save-btn { font-size: clamp(0.72rem, 2.6vw, 0.8rem); font-weight: 600; padding: 6px 14px; border-radius: 20px; background: #1f2937; color: white; border: none; cursor: pointer; transition: 0.15s; touch-action: manipulation; white-space: nowrap; }
-        .cloud-save-btn:hover { background: #111827; }
-        .cloud-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .cloud-save-btn.has-pending { background: #b45309; }
-        .cloud-save-btn.has-pending:hover { background: #92400e; }
-
-        .lock-now-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #d1d5db; background: #f9fafb; font-size: 0.8rem; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; touch-action: manipulation; }
-        .lock-now-btn:hover { background: #f3f4f6; }
-
-        .save-msg { font-size: clamp(0.68rem, 2.4vw, 0.75rem); font-weight: 600; padding: 4px 10px; border-radius: 20px; display: none; white-space: nowrap; }
-        .save-ok { background: #dcfce7; color: #166534; }
-        .save-fail { background: #fee2e2; color: #b91c1c; }
-
-        .subhead { color: #6b7280; font-size: clamp(0.78rem, 2.8vw, 0.9rem); margin-bottom: clamp(16px, 4vw, 24px); line-height: 1.5; border-left: 3px solid #9ca3af; padding-left: 10px; }
-
-        .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #f3f4f6; padding: 4px; border-radius: 10px; }
-        .tab-btn { flex: 1; padding: 10px 8px; border-radius: 8px; border: none; background: transparent; color: #4b5563; font-size: clamp(0.85rem, 3vw, 0.92rem); font-weight: 600; cursor: pointer; transition: 0.15s; touch-action: manipulation; }
-        .tab-btn:hover { background: #e5e7eb; }
-        .tab-btn.active { background: white; color: #111827; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-
-        .form-card { background: #f9fafb; border-radius: 10px; padding: clamp(14px, 3.5vw, 20px) clamp(12px, 3vw, 16px); margin-bottom: clamp(20px, 5vw, 28px); border: 1px solid #e5e7eb; }
-        .form-card h2, .form-card h3 { font-size: clamp(0.9rem, 3.2vw, 1rem); font-weight: 600; color: #374151; margin-bottom: 12px; }
-
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-
-        .input-group { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-        .input-group label { font-size: clamp(0.75rem, 2.6vw, 0.82rem); font-weight: 600; color: #374151; margin-left: 2px; }
-        .input-group label .opt { font-weight: 400; color: #9ca3af; font-size: 0.92em; }
-        .input-group input, .input-group select { padding: 11px 12px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; background: white; transition: 0.15s; outline: none; width: 100%; font-family: inherit; min-width: 0; }
-        .input-group input:focus, .input-group select:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
-
-        input[id="plate"], input[id="dPlate"], input[id="notePlate"] { text-transform: uppercase; }
-
-        .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto; margin-top: 4px; }
-        .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .autocomplete-item:hover { background: #f9fafb; }
-        .autocomplete-item:last-child { border-bottom: none; }
-        .ac-phone { font-size: 0.8rem; color: #6b7280; }
-
-        .weekday-selector { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 2px; }
-        .weekday-btn { padding: 10px 2px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.8rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; touch-action: manipulation; }
-        .weekday-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
-
-        .shift-selector, .type-selector, .d-type-selector, .d-shift-selector { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 2px; }
-        .d-type-selector { grid-template-columns: 1fr 1fr; }
-        .shift-btn, .type-btn, .d-type-btn, .d-shift-btn { padding: 10px 8px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #374151; font-size: clamp(0.82rem, 3vw, 0.9rem); font-weight: 500; cursor: pointer; transition: 0.12s; user-select: none; text-align: center; touch-action: manipulation; }
-        .shift-btn.active, .type-btn.active, .d-type-btn.active, .d-shift-btn.active { background: #1f2937; color: white; border-color: #1f2937; font-weight: 600; }
-
-        .record-form-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
-
-        .btn { padding: 11px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; cursor: pointer; transition: 0.12s; background: white; color: #374151; border: 1px solid #d1d5db; touch-action: manipulation; }
-        .btn-primary { background: #1f2937; color: white; border: none; }
-        .btn-primary:hover { background: #111827; }
-        .btn-outline { background: transparent; }
-        .btn-outline:hover { background: #f3f4f6; }
-
-        .btn-reset { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; cursor: pointer; margin-left: auto; display: block; }
-        .btn-reset:hover { background: #fef2f2; }
-        .form-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-        .form-title-row h2 { margin-bottom: 0; }
-
-        .records-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-        .records-header h2 { font-size: clamp(0.95rem, 3.5vw, 1.1rem); font-weight: 600; color: #111827; }
-        .search-input { padding: 6px 12px; border-radius: 20px; border: 1px solid #d1d5db; font-size: 0.85rem; outline: none; width: 150px; }
-        .search-input:focus { border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
-
-        .filter-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; background: #f9fafb; padding: 8px; border-radius: 10px; border: 1px solid #e5e7eb; }
-        .filter-item { display: flex; align-items: center; }
-        .filter-item input[type="text"], .filter-item select, .filter-item input[type="date"] { padding: 6px 10px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; outline: none; background: white; max-width: 100%; }
-        .filter-item input[type="text"]:focus, .filter-item select:focus, .filter-item input[type="date"]:focus { border-color: #6b7280; }
-        .btn-clear { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: 0.12s; white-space: nowrap; }
-        .btn-clear:hover { background: #fef2f2; }
-
-        .wd-dropdown { position: relative; }
-        .wd-dropdown summary { list-style: none; padding: 6px 10px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; background: white; cursor: pointer; outline: none; user-select: none; white-space: nowrap; color: #374151; }
-        .wd-dropdown summary::-webkit-details-marker { display: none; }
-        .wd-dropdown summary::after { content: ' ▼'; font-size: 0.6rem; color: #9ca3af; }
-        .wd-dropdown[open] summary { border-color: #6b7280; }
-        .wd-dropdown-content { position: absolute; top: 100%; left: 0; margin-top: 4px; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 8px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 50; min-width: 200px; }
-        .wd-dropdown-content label { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; cursor: pointer; padding: 2px 4px; }
-        .wd-dropdown-content input[type="checkbox"] { accent-color: #1f2937; cursor: pointer; }
-
-        .records-list, .driver-list { display: flex; flex-direction: column; gap: 7px; max-height: 60vh; overflow-y: auto; padding-right: 2px; }
-
-        .record-item, .note-item, .driver-item { background: white; border-radius: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; }
-        .driver-item { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-        .record-item.pending, .note-item.pending, .driver-item.pending { border-color: #f59e0b; background: #fffbeb; }
-
-        .record-row-top, .note-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-        .row-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-
-        .driver-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 120px; flex-wrap: wrap; }
-        .driver-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-
-        .driver-name-tag { font-weight: 600; font-size: clamp(0.95rem, 3.6vw, 1.05rem); color: #1e3a8a; background: #dbeafe; padding: 3px 10px; border-radius: 6px; display: inline-block; }
-
-        .record-contact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .record-phone, .driver-phone { color: #4b5563; font-size: clamp(0.8rem, 2.9vw, 0.88rem); white-space: nowrap; }
-
-        .record-shift { font-weight: 500; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
-        .record-shift.morning { background: #fef3c7; color: #92400e; }
-        .record-shift.night { background: #e5e7eb; color: #374151; }
-        .record-shift.special { background: #ffedd5; color: #c2410c; }
-
-        .type-tag { font-weight: 600; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
-        .type-tag.regular { background: #e0e7ff; color: #4338ca; }
-        .type-tag.substitute { background: #fce7f3; color: #be185d; }
-
-        .record-plate { font-weight: 600; font-size: clamp(0.72rem, 2.6vw, 0.8rem); padding: 2px 8px; border-radius: 4px; background: #111827; color: #facc15; white-space: nowrap; letter-spacing: 1px; }
-
-        .record-row-bottom, .note-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-
-        .wa-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; background: #e8f5e9; color: #2e7d32; text-decoration: none; border: 1px solid #a5d6a7; transition: 0.12s; flex-shrink: 0; }
-        .wa-btn svg { display: block; width: 15px; height: 15px; }
-
-        .days-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
-        .day-tag { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 5px; background: #eef2ff; color: #3730a3; font-size: 0.75rem; font-weight: 600; line-height: 1; }
-        .day-tag.empty { background: #f3f4f6; color: #9ca3af; font-weight: 400; padding: 0 8px; }
-
-        .star-btn { background: transparent; border: none; font-size: 1.4rem; cursor: pointer; padding: 0; line-height: 1; color: #d1d5db; transition: transform 0.1s, color 0.1s; margin-right: 4px; display: flex; align-items: center; }
-        .star-btn:hover { transform: scale(1.1); }
-        .star-btn.starred { color: #fbbf24; }
-
-        .record-actions { display: flex; gap: 5px; flex-shrink: 0; }
-        .edit-btn { background: transparent; border: 1px solid #cbd5e1; color: #374151; padding: 5px 11px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; }
-        .edit-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
-        .delete-btn { background: transparent; border: 1px solid #fca5a5; color: #b91c1c; padding: 5px 11px; border-radius: 6px; font-size: clamp(0.7rem, 2.5vw, 0.75rem); font-weight: 500; cursor: pointer; }
-        .delete-btn:hover { background: #fef2f2; }
-
-        .empty-message { text-align: center; padding: 32px 16px; color: #9ca3af; background: #f9fafb; border-radius: 10px; border: 1px dashed #d1d5db; font-size: 0.9rem; }
-
-        .record-form-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
-        .record-line-1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .record-line-2 { display: block; }
-        .record-line-3 { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: flex-end; }
-        .record-line-3 .shift-selector { grid-template-columns: 1fr 1fr 1fr; }
-        .record-line-3 button { height: 42px; white-space: nowrap; }
-        .record-line-3 .btn { height: 42px; }
-
-        .note-line-1, .note-line-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        .note-line-1 .input-group input { width: 100%; min-width: 0; -webkit-appearance: none; }
-        .note-line-3 { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; flex-wrap: wrap; }
-        .note-line-3 .input-group { flex: 1; min-width: 140px; }
-        .note-form-card .input-group input { padding: 9px 8px; font-size: 0.85rem; }
-        .note-form-card .weekday-btn { padding: 8px 2px; font-size: 0.8rem; }
-        .note-hint { font-size: 0.72rem; color: #9ca3af; margin-top: -2px; margin-bottom: 8px; line-height: 1.4; }
-
-        .notes-filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; background: #f9fafb; padding: 8px; border-radius: 10px; border: 1px solid #e5e7eb; }
-        .notes-filter-bar .filter-group { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: #4b5563; flex-wrap: wrap; }
-        .notes-filter-bar input[type="date"], .notes-filter-bar select { padding: 6px 10px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.8rem; outline: none; background: white; max-width: 100%; }
-        .notes-filter-bar input[type="date"]:focus, .notes-filter-bar select:focus { border-color: #6b7280; }
-
-        /* ===== 備註列表 ===== */
-        .note-date { font-weight: 600; font-size: clamp(0.85rem, 3vw, 0.95rem); color: #111827; }
-
-        /* 備註事情：獨立一行 + 左邊橙色粗線（方案 C） */
-        .note-row-top { flex-direction: column; align-items: flex-start; gap: 5px; }
-        .note-text {
-            font-size: clamp(0.95rem, 3.6vw, 1.1rem);
-            font-weight: 700;
-            color: #92400e;
-            border-left: 3px solid #f59e0b;
-            padding-left: 8px;
-            text-align: left;
-            word-break: break-word;
-            line-height: 1.35;
-            align-self: stretch;
+    noteForm.onsubmit = (e) => {
+        e.preventDefault();
+        const inputDriver = noteDriver.value.trim();
+        const inputPlate = notePlate.value.trim().toUpperCase();
+        if (!noteStart.value || !noteEnd.value || !noteText.value.trim()) {
+            alert('請填寫開始日期、結束日期同備註事情');
+            return;
         }
-
-        .note-row-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
-        .note-expire { font-size: clamp(0.65rem, 2.3vw, 0.72rem); color: #9ca3af; flex: 1; }
-
-        footer { margin-top: 18px; font-size: 0.72rem; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 14px; }
-
-        @media (max-width: 500px) {
-            .driver-item { flex-direction: column; align-items: stretch; gap: 8px; }
-            .driver-left, .driver-right { width: 100%; justify-content: flex-start; }
-            .driver-right { justify-content: flex-end; }
-            .driver-item .record-actions { margin-left: auto; }
-
-            .note-line-1, .note-line-2 { grid-template-columns: 1fr 1fr; }
-            .notes-filter-bar .filter-group { width: 100%; justify-content: space-between; }
-            .notes-filter-bar input[type="date"] { flex: 1; min-width: 0; }
-            .record-line-3 { grid-template-columns: 1fr; }
-            .record-line-3 .record-form-actions { justify-content: flex-end; }
+        if (!inputDriver && !inputPlate) {
+            alert('請輸入司機姓名，或者輸入車牌（最少填一樣）');
+            return;
         }
-    </style>
+        if (noteEnd.value < noteStart.value) {
+            alert('結束日期唔可以早過開始日期。');
+            return;
+        }
+        let noteType = '', noteShift = '', notePhoneVal = '';
+        if (inputDriver) {
+            const matchedDriver = currentDrivers.find(d => d.name === inputDriver);
+            if (matchedDriver) {
+                if (matchedDriver.type) noteType = matchedDriver.type;
+                if (matchedDriver.shift) noteShift = matchedDriver.shift;
+                if (matchedDriver.phone) notePhoneVal = matchedDriver.phone;
+            }
+        }
+        const data = {
+            startDate: noteStart.value,
+            endDate: noteEnd.value,
+            driver: inputDriver,
+            plate: inputPlate,
+            phone: notePhoneVal,
+            text: noteText.value.trim(),
+            type: noteType,
+            shift: noteShift,
+            weekdays: Array.from(selectedNoteWeekdays)
+        };
+        if (editingNoteId) {
+            const idx = currentNotes.findIndex(n => n.id === editingNoteId);
+            if (idx !== -1) currentNotes[idx] = Object.assign({}, currentNotes[idx], data, { _pending: true });
+            queueChange(pendingNoteChanges, editingNoteId, data);
+        } else {
+            const tempId = 'note_' + Date.now();
+            currentNotes.unshift(Object.assign({ id: tempId }, data, { _pending: true, createdAt: new Date() }));
+            pendingNoteChanges.push({ type: 'add', tempId, data: Object.assign({}, data) });
+        }
+        renderNotes();
+        updatePendingIndicator();
+        exitNoteEditMode();
+        showSaveMsg('已加入暫存', true);
+    };
+
+    driverForm.onsubmit = (e) => {
+        e.preventDefault();
+        const typeBtn = document.querySelector('.d-type-btn.active');
+        const newName = dName.value.trim();
+        if (!newName || !dPhone.value.trim() || !typeBtn || !dSelectedShift) {
+            alert('請填寫姓名、電話，並選擇類型（正/替）及更別（早/夜/特）');
+            return;
+        }
+        if (!isPhoneOk(dPhone.value)) {
+            alert('電話號碼格式唔啱，請輸入 8 位數字（或 852 加 8 位）。');
+            return;
+        }
+        if (!editingDriverId && currentDrivers.some(d => (d.name || '').toLowerCase() === newName.toLowerCase())) {
+            alert(`「${newName}」已經存在於司機資料庫中，請勿重複新增！`);
+            return;
+        }
+        const data = {
+            name: newName,
+            phone: dPhone.value.trim(),
+            plate: dPlate.value.trim().toUpperCase(),
+            type: typeBtn.dataset.type,
+            shift: dSelectedShift
+        };
+        if (editingDriverId) {
+            const oldDriver = currentDrivers.find(d => d.id === editingDriverId);
+            const oldName = oldDriver ? oldDriver.name : '';
+            const idx = currentDrivers.findIndex(d => d.id === editingDriverId);
+            if (idx !== -1) currentDrivers[idx] = Object.assign({}, currentDrivers[idx], data, { _pending: true });
+            queueChange(pendingDriverChanges, editingDriverId, data);
+            if (oldName && oldName !== newName) {
+                currentRecords.forEach(r => {
+                    if (r.name === oldName) {
+                        r.name = newName;
+                        r._pending = true;
+                        queueChange(pendingChanges, r.id, { name: newName });
+                    }
+                });
+                renderRecords();
+                currentNotes.forEach(n => {
+                    if (n.driver === oldName) {
+                        n.driver = newName;
+                        n._pending = true;
+                        queueChange(pendingNoteChanges, n.id, { driver: newName });
+                    }
+                });
+                renderNotes();
+            }
+        } else {
+            const tempId = 'd_' + Date.now();
+            currentDrivers.unshift(Object.assign({ id: tempId }, data, { _pending: true, createdAt: new Date() }));
+            pendingDriverChanges.push({ type: 'add', tempId, data: Object.assign({}, data) });
+        }
+        renderDrivers();
+        updatePendingIndicator();
+        exitDriverEditMode();
+        showSaveMsg('已加入暫存', true);
+    };
+
+    cancelEditBtn.onclick = () => exitEditMode();
+    noteCancelBtn.onclick = () => exitNoteEditMode();
+    driverCancelBtn.onclick = () => exitDriverEditMode();
+
+    tabRecords.onclick = () => switchTab('records');
+    tabNotes.onclick = () => switchTab('notes');
+    tabDrivers.onclick = () => switchTab('drivers');
+
+    cloudSaveBtn.onclick = handleSave;
+}
+
+async function handleSave() {
+    const total = pendingTotal();
+    if (total === 0) { showSaveMsg('冇改動需要儲存', true); return; }
+    if (saving) return;
+
+    saving = true;
+    cloudSaveBtn.disabled = true;
+    cloudSaveBtn.textContent = '儲存中…';
+
+    const failedDrivers = [], failedRecords = [], failedNotes = [];
+    const idRemap = {};
+    let sCount = 0, fCount = 0, fMsg = '';
+    const handleError = (e) => { fCount++; fMsg = (e && e.message) ? e.message : String(e); };
+
+    for (const c of pendingDriverChanges) {
+        try {
+            if (c.type === 'add') {
+                const ref = await addDoc(driversCollection, Object.assign({}, c.data, { createdAt: new Date() }));
+                idRemap[c.tempId] = ref.id;
+            } else if (c.type === 'update') {
+                await updateDoc(doc(db, "driversData", c.id), c.data);
+            } else if (c.type === 'delete') {
+                await deleteDoc(doc(db, "driversData", c.id));
+            }
+            sCount++;
+        } catch (e) {
+            if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') sCount++;
+            else { handleError(e); failedDrivers.push(c); }
+        }
+    }
+
+    for (const c of pendingChanges) {
+        try {
+            if (c.type === 'add') {
+                const ref = await addDoc(recordsCollection, Object.assign({}, c.data, { createdAt: new Date() }));
+                idRemap[c.tempId] = ref.id;
+            } else if (c.type === 'update') {
+                await updateDoc(doc(db, "shiftRecords", c.id), c.data);
+            } else if (c.type === 'delete') {
+                await deleteDoc(doc(db, "shiftRecords", c.id));
+            }
+            sCount++;
+        } catch (e) {
+            if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') sCount++;
+            else { handleError(e); failedRecords.push(c); }
+        }
+    }
+
+    for (const c of pendingNoteChanges) {
+        try {
+            if (c.type === 'add') {
+                const ref = await addDoc(notesCollection, Object.assign({}, c.data, { createdAt: new Date() }));
+                idRemap[c.tempId] = ref.id;
+            } else if (c.type === 'update') {
+                await updateDoc(doc(db, "shiftNotes", c.id), c.data);
+            } else if (c.type === 'delete') {
+                await deleteDoc(doc(db, "shiftNotes", c.id));
+            }
+            sCount++;
+        } catch (e) {
+            if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') sCount++;
+            else { handleError(e); failedNotes.push(c); }
+        }
+    }
+
+    pendingDriverChanges = failedDrivers;
+    pendingChanges = failedRecords;
+    pendingNoteChanges = failedNotes;
+
+    const remapIds = (list) => {
+        list.forEach(item => {
+            if (idRemap[item.id]) item.id = idRemap[item.id];
+        });
+        const seen = new Map();
+        list.forEach(item => seen.set(item.id, item));
+        return Array.from(seen.values());
+    };
+    currentRecords = remapIds(currentRecords);
+    currentNotes = remapIds(currentNotes);
+    currentDrivers = remapIds(currentDrivers);
+
+    const remainIds = new Set();
+    pendingChanges.forEach(c => remainIds.add(c.type === 'add' ? c.tempId : c.id));
+    pendingNoteChanges.forEach(c => remainIds.add(c.type === 'add' ? c.tempId : c.id));
+    pendingDriverChanges.forEach(c => remainIds.add(c.type === 'add' ? c.tempId : c.id));
+    [currentRecords, currentNotes, currentDrivers].forEach(list => {
+        list.forEach(item => { if (!remainIds.has(item.id)) delete item._pending; });
+    });
+
+    saving = false;
+    cloudSaveBtn.disabled = false;
+    updatePendingIndicator();
+
+    if (fCount === 0) showSaveMsg(`儲存成功 (${sCount} 項)`, true);
+    else {
+        showSaveMsg(`有 ${fCount} 項儲存失敗，其餘已成功`, false);
+        console.error('儲存失敗原因：', fMsg);
+    }
+    renderRecords();
+    renderNotes();
+    renderDrivers();
+}
+
+function startApp() {
+    versionEl.textContent = APP_VERSION;
+    buildControls();
+    wireEvents();
+    if (readUnlocked()) {
+        lockScreen.style.display = 'none';
+        appRoot.style.display = 'block';
+        listenAll();
+    } else {
+        showLockScreen();
+    }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startApp);
+else startApp();
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;-webkit-tap-highlight-color:transparent}
+html{font-size:clamp(14px,3.8vw,17px)}
+body{background:#f3f4f6;padding:max(10px,env(safe-area-inset-left)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom));display:flex;justify-content:center;min-height:100vh}
+
+.lock-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:#f3f4f6;z-index:9999}
+.lock-card{width:100%;max-width:340px;background:#fff;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.08);padding:28px 22px;text-align:center}
+.lock-card h1{font-size:clamp(1.1rem,4.6vw,1.3rem);font-weight:600;color:#111827;margin-bottom:6px}
+.lock-card p{font-size:.82rem;color:#6b7280;margin-bottom:18px}
+.lock-card input{width:100%;padding:12px;font-size:1.15rem;text-align:center;letter-spacing:8px;border-radius:8px;border:1px solid #d1d5db;outline:none;font-family:inherit;-webkit-appearance:none}
+.lock-card input:focus{border-color:#6b7280;box-shadow:0 0 0 3px rgba(107,114,128,.1)}
+.lock-btn{margin-top:14px;width:100%;padding:12px;border-radius:8px;border:none;background:#1f2937;color:#fff;font-size:.95rem;font-weight:600;cursor:pointer;touch-action:manipulation}
+.lock-btn:hover{background:#111827}
+.lock-error{display:none;margin-top:12px;font-size:.78rem;font-weight:600;color:#b91c1c;background:#fee2e2;padding:7px 10px;border-radius:6px}
+
+.container{max-width:800px;width:100%;background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.06);padding:clamp(16px,4vw,24px) clamp(12px,3.5vw,20px);height:fit-content}
+.header-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.title-wrap{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+h1{font-size:clamp(1.2rem,5vw,1.5rem);font-weight:600;color:#111827}
+.version{font-size:clamp(.7rem,2.6vw,.8rem);font-weight:600;color:#6b7280;background:#f3f4f6;padding:2px 8px;border-radius:6px}
+.right-top{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.conn-status{font-size:clamp(.7rem,2.5vw,.78rem);font-weight:600;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.status-connecting{background:#fef3c7;color:#92400e}
+.status-connected{background:#dcfce7;color:#166534}
+.status-failed{background:#fee2e2;color:#b91c1c}
+.save-row{display:flex;align-items:center;gap:6px}
+.cloud-save-btn{font-size:clamp(.72rem,2.6vw,.8rem);font-weight:600;padding:6px 14px;border-radius:20px;background:#1f2937;color:#fff;border:none;cursor:pointer;transition:.15s;touch-action:manipulation;white-space:nowrap}
+.cloud-save-btn:hover{background:#111827}
+.cloud-save-btn:disabled{opacity:.6;cursor:not-allowed}
+.cloud-save-btn.has-pending{background:#b45309}
+.cloud-save-btn.has-pending:hover{background:#92400e}
+.lock-now-btn{width:30px;height:30px;border-radius:50%;border:1px solid #d1d5db;background:#f9fafb;font-size:.8rem;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation}
+.lock-now-btn:hover{background:#f3f4f6}
+.save-msg{font-size:clamp(.68rem,2.4vw,.75rem);font-weight:600;padding:4px 10px;border-radius:20px;display:none;white-space:nowrap}
+.save-ok{background:#dcfce7;color:#166534}
+.save-fail{background:#fee2e2;color:#b91c1c}
+.subhead{color:#6b7280;font-size:clamp(.78rem,2.8vw,.9rem);margin-bottom:clamp(16px,4vw,24px);line-height:1.5;border-left:3px solid #9ca3af;padding-left:10px}
+
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:#f3f4f6;padding:4px;border-radius:10px}
+.tab-btn{flex:1;padding:10px 8px;border-radius:8px;border:none;background:transparent;color:#4b5563;font-size:clamp(.85rem,3vw,.92rem);font-weight:600;cursor:pointer;transition:.15s;touch-action:manipulation}
+.tab-btn:hover{background:#e5e7eb}
+.tab-btn.active{background:#fff;color:#111827;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+.form-card{background:#f9fafb;border-radius:10px;padding:clamp(14px,3.5vw,20px) clamp(12px,3vw,16px);margin-bottom:clamp(20px,5vw,28px);border:1px solid #e5e7eb}
+.form-card h2,.form-card h3{font-size:clamp(.9rem,3.2vw,1rem);font-weight:600;color:#374151;margin-bottom:12px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.input-group{display:flex;flex-direction:column;gap:5px;min-width:0}
+.input-group label{font-size:clamp(.75rem,2.6vw,.82rem);font-weight:600;color:#374151;margin-left:2px}
+.input-group label .opt{font-weight:400;color:#9ca3af;font-size:.92em}
+.input-group input,.input-group select{padding:11px 12px;border-radius:8px;border:1px solid #d1d5db;font-size:.95rem;background:#fff;transition:.15s;outline:none;width:100%;font-family:inherit;min-width:0}
+.input-group input:focus,.input-group select:focus{border-color:#6b7280;box-shadow:0 0 0 3px rgba(107,114,128,.1)}
+input[id="plate"],input[id="dPlate"],input[id="notePlate"]{text-transform:uppercase}
+
+.autocomplete-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;max-height:200px;overflow-y:auto;margin-top:4px}
+.autocomplete-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.autocomplete-item:hover{background:#f9fafb}
+.autocomplete-item:last-child{border-bottom:none}
+.ac-phone{font-size:.8rem;color:#6b7280}
+
+.weekday-selector{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:2px}
+.weekday-btn{padding:10px 2px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:clamp(.8rem,3vw,.9rem);font-weight:500;cursor:pointer;transition:.12s;user-select:none;text-align:center;touch-action:manipulation}
+.weekday-btn.active{background:#1f2937;color:#fff;border-color:#1f2937;font-weight:600}
+
+.shift-selector,.type-selector,.d-type-selector,.d-shift-selector{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:2px}
+.d-type-selector{grid-template-columns:1fr 1fr}
+.shift-btn,.type-btn,.d-type-btn,.d-shift-btn{padding:10px 8px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:clamp(.82rem,3vw,.9rem);font-weight:500;cursor:pointer;transition:.12s;user-select:none;text-align:center;touch-action:manipulation}
+.shift-btn.active,.type-btn.active,.d-type-btn.active,.d-shift-btn.active{background:#1f2937;color:#fff;border-color:#1f2937;font-weight:600}
+
+.record-form-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap}
+.btn{padding:11px 18px;border-radius:8px;font-weight:500;font-size:.9rem;cursor:pointer;transition:.12s;background:#fff;color:#374151;border:1px solid #d1d5db;touch-action:manipulation}
+.btn-primary{background:#1f2937;color:#fff;border:none}
+.btn-primary:hover{background:#111827}
+.btn-outline{background:transparent}
+.btn-outline:hover{background:#f3f4f6}
+.btn-reset{background:transparent;border:1px solid #fca5a5;color:#b91c1c;font-size:.75rem;padding:2px 8px;border-radius:4px;cursor:pointer;margin-left:auto;display:block}
+.btn-reset:hover{background:#fef2f2}
+.form-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.form-title-row h2{margin-bottom:0}
+
+.records-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.records-header h2{font-size:clamp(.95rem,3.5vw,1.1rem);font-weight:600;color:#111827}
+.search-input{padding:6px 12px;border-radius:20px;border:1px solid #d1d5db;font-size:.85rem;outline:none;width:150px}
+.search-input:focus{border-color:#6b7280;box-shadow:0 0 0 3px rgba(107,114,128,.1)}
+
+.filter-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;background:#f9fafb;padding:8px;border-radius:10px;border:1px solid #e5e7eb}
+.filter-item{display:flex;align-items:center}
+.filter-item input[type="text"],.filter-item select,.filter-item input[type="date"]{padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:.8rem;outline:none;background:#fff;max-width:100%}
+.filter-item input[type="text"]:focus,.filter-item select:focus,.filter-item input[type="date"]:focus{border-color:#6b7280}
+.btn-clear{background:transparent;border:1px solid #fca5a5;color:#b91c1c;padding:6px 12px;border-radius:6px;font-size:.8rem;font-weight:500;cursor:pointer;transition:.12s;white-space:nowrap}
+.btn-clear:hover{background:#fef2f2}
+
+.wd-dropdown{position:relative}
+.wd-dropdown summary{list-style:none;padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:.8rem;background:#fff;cursor:pointer;outline:none;user-select:none;white-space:nowrap;color:#374151}
+.wd-dropdown summary::-webkit-details-marker{display:none}
+.wd-dropdown summary::after{content:' ▼';font-size:.6rem;color:#9ca3af}
+.wd-dropdown[open] summary{border-color:#6b7280}
+.wd-dropdown-content{position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:8px;display:flex;flex-wrap:wrap;gap:8px;z-index:50;min-width:200px}
+.wd-dropdown-content label{display:flex;align-items:center;gap:4px;font-size:.8rem;cursor:pointer;padding:2px 4px}
+.wd-dropdown-content input[type="checkbox"]{accent-color:#1f2937;cursor:pointer}
+
+.records-list,.driver-list{display:flex;flex-direction:column;gap:7px;max-height:60vh;overflow-y:auto;padding-right:2px}
+.record-item,.note-item,.driver-item{background:#fff;border-radius:10px;padding:10px 12px;border:1px solid #e5e7eb;display:flex;flex-direction:column;gap:6px}
+.driver-item{flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.record-item.pending,.note-item.pending,.driver-item.pending{border-color:#f59e0b;background:#fffbeb}
+
+.record-row-top,.note-row-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.row-left{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.driver-left{display:flex;align-items:center;gap:8px;flex:1;min-width:120px;flex-wrap:wrap}
+.driver-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.driver-name-tag{font-weight:600;font-size:clamp(.95rem,3.6vw,1.05rem);color:#1e3a8a;background:#dbeafe;padding:3px 10px;border-radius:6px;display:inline-block}
+.record-contact{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.record-phone,.driver-phone{color:#4b5563;font-size:clamp(.8rem,2.9vw,.88rem);white-space:nowrap}
+
+.record-shift{font-weight:500;font-size:clamp(.72rem,2.6vw,.8rem);padding:2px 9px;border-radius:20px;white-space:nowrap}
+.record-shift.morning{background:#fef3c7;color:#92400e}
+.record-shift.night{background:#e5e7eb;color:#374151}
+.record-shift.special{background:#ffedd5;color:#c2410c}
+.type-tag{font-weight:600;font-size:clamp(.72rem,2.6vw,.8rem);padding:2px 8px;border-radius:4px;white-space:nowrap}
+.type-tag.regular{background:#e0e7ff;color:#4338ca}
+.type-tag.substitute{background:#fce7f3;color:#be185d}
+.record-plate{font-weight:600;font-size:clamp(.72rem,2.6vw,.8rem);padding:2px 8px;border-radius:4px;background:#111827;color:#facc15;white-space:nowrap;letter-spacing:1px}
+
+.record-row-bottom,.note-row-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.record-bottom-left{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.note-tag{display:inline-flex;align-items:center;max-width:100%;padding:2px 8px;border-radius:5px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:.75rem;font-weight:600;line-height:1.3;word-break:break-word}
+.wa-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:#e8f5e9;color:#2e7d32;text-decoration:none;border:1px solid #a5d6a7;transition:.12s;flex-shrink:0}
+.wa-btn svg{display:block;width:15px;height:15px}
+
+.days-tags{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+.day-tag{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:5px;background:#eef2ff;color:#3730a3;font-size:.75rem;font-weight:600;line-height:1}
+.day-tag.empty{background:#f3f4f6;color:#9ca3af;font-weight:400;padding:0 8px}
+
+.star-btn{background:transparent;border:none;font-size:1.4rem;cursor:pointer;padding:0;line-height:1;color:#d1d5db;transition:transform .1s,color .1s;margin-right:4px;display:flex;align-items:center}
+.star-btn:hover{transform:scale(1.1)}
+.star-btn.starred{color:#fbbf24}
+
+.record-actions{display:flex;gap:5px;flex-shrink:0}
+.edit-btn{background:transparent;border:1px solid #cbd5e1;color:#374151;padding:5px 11px;border-radius:6px;font-size:clamp(.7rem,2.5vw,.75rem);font-weight:500;cursor:pointer}
+.edit-btn:hover{background:#f3f4f6;border-color:#9ca3af}
+.delete-btn{background:transparent;border:1px solid #fca5a5;color:#b91c1c;padding:5px 11px;border-radius:6px;font-size:clamp(.7rem,2.5vw,.75rem);font-weight:500;cursor:pointer}
+.delete-btn:hover{background:#fef2f2}
+
+.empty-message{text-align:center;padding:32px 16px;color:#9ca3af;background:#f9fafb;border-radius:10px;border:1px dashed #d1d5db;font-size:.9rem}
+
+.record-form-grid{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.record-line-1{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.record-line-2{display:block}
+.record-line-note{display:block}
+.record-line-3{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:flex-end}
+.record-line-3 .shift-selector{grid-template-columns:1fr 1fr 1fr}
+.record-line-3 button{height:42px;white-space:nowrap}
+.record-line-3 .btn{height:42px}
+
+.note-line-1,.note-line-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.note-line-1 .input-group input{width:100%;min-width:0;-webkit-appearance:none}
+.note-line-3{display:flex;gap:8px;align-items:flex-end;margin-bottom:4px;flex-wrap:wrap}
+.note-line-3 .input-group{flex:1;min-width:140px}
+.note-form-card .input-group input{padding:9px 8px;font-size:.85rem}
+.note-form-card .weekday-btn{padding:8px 2px;font-size:.8rem}
+.note-hint{font-size:.72rem;color:#9ca3af;margin-top:-2px;margin-bottom:8px;line-height:1.4}
+
+.notes-filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;background:#f9fafb;padding:8px;border-radius:10px;border:1px solid #e5e7eb}
+.notes-filter-bar .filter-group{display:flex;align-items:center;gap:4px;font-size:.8rem;color:#4b5563;flex-wrap:wrap}
+.notes-filter-bar input[type="date"],.notes-filter-bar select{padding:6px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:.8rem;outline:none;background:#fff;max-width:100%}
+.notes-filter-bar input[type="date"]:focus,.notes-filter-bar select:focus{border-color:#6b7280}
+
+.note-date{font-weight:600;font-size:clamp(.85rem,3vw,.95rem);color:#111827}
+.note-row-top{flex-direction:column;align-items:flex-start;gap:5px}
+.note-text{font-size:clamp(.95rem,3.6vw,1.1rem);font-weight:700;color:#92400e;border-left:3px solid #f59e0b;padding-left:8px;text-align:left;word-break:break-word;line-height:1.35;align-self:stretch}
+.note-row-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:2px}
+.note-expire{font-size:clamp(.65rem,2.3vw,.72rem);color:#9ca3af;flex:1}
+
+footer{margin-top:18px;font-size:.72rem;color:#9ca3af;text-align:center;border-top:1px solid #e5e7eb;padding-top:14px}
+
+@media (max-width:500px){
+.driver-item{flex-direction:column;align-items:stretch;gap:8px}
+.driver-left,.driver-right{width:100%;justify-content:flex-start}
+.driver-right{justify-content:flex-end}
+.driver-item .record-actions{margin-left:auto}
+.notes-filter-bar .filter-group{width:100%;justify-content:space-between}
+.notes-filter-bar input[type="date"]{flex:1;min-width:0}
+.record-line-3{grid-template-columns:1fr}
+.record-line-3 .record-form-actions{justify-content:flex-end}
+}
+</style>
 </head>
 <body>
-    <!-- ===== 密碼閘 ===== -->
-    <div id="lockScreen" class="lock-screen">
-        <div class="lock-card">
+<div id="lockScreen" class="lock-screen">
+    <div class="lock-card">
+        <h1>的士編更系統</h1>
+        <p>請輸入密碼以繼續</p>
+        <input type="password" id="lockInput" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="••••">
+        <button type="button" id="lockBtn" class="lock-btn">進入</button>
+        <div id="lockError" class="lock-error">密碼不正確，請再試一次</div>
+    </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+<div class="container">
+    <div class="header-row">
+        <div class="title-wrap">
             <h1>的士編更系統</h1>
-            <p>請輸入密碼以繼續</p>
-            <input type="password" id="lockInput" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="••••">
-            <button type="button" id="lockBtn" class="lock-btn">進入</button>
-            <div id="lockError" class="lock-error">密碼不正確，請再試一次</div>
+            <span class="version" id="version">V3.5</span>
+        </div>
+        <div class="right-top">
+            <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
+            <div class="save-row">
+                <span id="saveStatusMsg" class="save-msg"></span>
+                <button type="button" id="cloudSaveBtn" class="cloud-save-btn">儲存</button>
+                <button type="button" id="lockNowBtn" class="lock-now-btn" title="鎖定">🔒</button>
+            </div>
         </div>
     </div>
+    <div class="subhead">管理司機資料、長期同短期備註。所有改動會先暫存，撳右上角「儲存」才會寫上雲端。</div>
 
-    <!-- ===== 主體（未解鎖時隱藏） ===== -->
-    <div id="appRoot" style="display: none;">
-        <div class="container">
-            <div class="header-row">
-                <div class="title-wrap">
-                    <h1>的士編更系統</h1>
-                    <span class="version" id="version">V3.4</span>
-                </div>
-                <div class="right-top">
-                    <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
-                    <div class="save-row">
-                        <span id="saveStatusMsg" class="save-msg"></span>
-                        <button type="button" id="cloudSaveBtn" class="cloud-save-btn">儲存</button>
-                        <button type="button" id="lockNowBtn" class="lock-now-btn" title="鎖定">🔒</button>
-                    </div>
-                </div>
+    <div class="tabs">
+        <button type="button" id="tabRecords" class="tab-btn active">長期備註</button>
+        <button type="button" id="tabNotes" class="tab-btn">短期備註</button>
+        <button type="button" id="tabDrivers" class="tab-btn">司機資料</button>
+    </div>
+
+    <div id="panelRecords">
+        <div class="form-card">
+            <div class="form-title-row">
+                <h2 id="formTitle">長期備註</h2>
+                <button type="button" id="resetRecordBtn" class="btn-reset">重設</button>
             </div>
-            <div class="subhead">
-                管理司機資料、排更同備註。所有改動會先暫存，撳右上角「儲存」才會寫上雲端。
-            </div>
-
-            <div class="tabs">
-                <button type="button" id="tabRecords" class="tab-btn active">指定編更</button>
-                <button type="button" id="tabNotes" class="tab-btn">備註</button>
-                <button type="button" id="tabDrivers" class="tab-btn">司機資料</button>
-            </div>
-
-            <!-- 分頁 1：指定編更 -->
-            <div id="panelRecords">
-                <div class="form-card">
-                    <div class="form-title-row">
-                        <h2 id="formTitle">指定編更</h2>
-                        <button type="button" id="resetRecordBtn" class="btn-reset">重設</button>
-                    </div>
-                    <form id="recordForm">
-                        <div class="record-form-grid">
-                            <div class="record-line-1">
-                                <div class="input-group">
-                                    <label>司機姓名</label>
-                                    <input type="text" id="name" placeholder="輸入並撳選司機" required autocomplete="off">
-                                    <input type="hidden" id="phone">
-                                </div>
-                                <div class="input-group">
-                                    <label>車牌 <span class="opt">（選填）</span></label>
-                                    <input type="text" id="plate" placeholder="AB 1234">
-                                </div>
-                            </div>
-
-                            <div class="record-line-2 input-group">
-                                <label>逢星期幾返工（可揀多日）</label>
-                                <div id="weekdayButtons" class="weekday-selector"></div>
-                            </div>
-
-                            <div class="record-line-3">
-                                <div class="input-group">
-                                    <label>更別</label>
-                                    <div id="shiftButtons" class="shift-selector"></div>
-                                </div>
-                                <div class="record-form-actions">
-                                    <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
-                                    <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display: none;">取消修改</button>
-                                </div>
-                            </div>
+            <form id="recordForm">
+                <div class="record-form-grid">
+                    <div class="record-line-1">
+                        <div class="input-group">
+                            <label>司機姓名</label>
+                            <input type="text" id="name" placeholder="輸入並撳選司機" required autocomplete="off">
+                            <input type="hidden" id="phone">
                         </div>
-                    </form>
-                </div>
-
-                <div class="records-header">
-                    <h2>指定編更紀錄</h2>
-                </div>
-
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <input type="text" id="searchRecordText" placeholder="🔍 搜尋人名/電話" style="width: 130px;">
-                    </div>
-                    <div class="filter-item">
-                        <select id="searchRecordType">
-                            <option value="">全部類型</option>
-                            <option value="正更">正更</option>
-                            <option value="替更">替更</option>
-                        </select>
-                    </div>
-                    <div class="filter-item">
-                        <select id="searchRecordShift">
-                            <option value="">全部更別</option>
-                            <option value="morning">早</option>
-                            <option value="night">夜</option>
-                            <option value="special">特</option>
-                        </select>
-                    </div>
-                    <details class="wd-dropdown">
-                        <summary>📅 星期幾</summary>
-                        <div class="wd-dropdown-content">
-                            <label><input type="checkbox" class="record-filter-wd" value="mon"> 一</label>
-                            <label><input type="checkbox" class="record-filter-wd" value="tue"> 二</label>
-                            <label><input type="checkbox" class="record-filter-wd" value="wed"> 三</label>
-                            <label><input type="checkbox" class="record-filter-wd" value="thu"> 四</label>
-                            <label><input type="checkbox" class="record-filter-wd" value="fri"> 五</label>
-                            <label><input type="checkbox" class="record-filter-wd" value="sat"> 六</label>
-                            <label><input type="checkbox" class="record-filter-wd" value="sun"> 日</label>
+                        <div class="input-group">
+                            <label>車牌 <span class="opt">（選填）</span></label>
+                            <input type="text" id="plate" placeholder="AB 1234">
                         </div>
-                    </details>
-                    <button type="button" id="clearRecordSearchBtn" class="btn-clear">清除</button>
-                </div>
-
-                <div id="recordsList" class="records-list">
-                    <div class="empty-message">載入中...</div>
-                </div>
-            </div>
-
-            <!-- 分頁 2：備註 -->
-            <div id="panelNotes" style="display: none;">
-                <div class="note-form-card form-card">
-                    <h3 id="noteTitle">新增備註</h3>
-                    <form id="noteForm">
-                        <div class="note-line-1">
-                            <div class="input-group">
-                                <label>開始日期</label>
-                                <input type="date" id="noteStart" required>
-                            </div>
-                            <div class="input-group">
-                                <label>結束日期</label>
-                                <input type="date" id="noteEnd" required>
-                            </div>
-                        </div>
-
-                        <div class="input-group" style="margin-bottom: 8px;">
-                            <label>指定星期幾 <span class="opt">（選填）</span></label>
-                            <div id="noteWeekdayButtons" class="weekday-selector"></div>
-                        </div>
-
-                        <div class="note-line-2">
-                            <div class="input-group">
-                                <label>司機姓名 <span class="opt">（選填）</span></label>
-                                <input type="text" id="noteDriver" placeholder="輸入並撳選司機" autocomplete="off">
-                            </div>
-                            <div class="input-group">
-                                <label>車牌 <span class="opt">（選填）</span></label>
-                                <input type="text" id="notePlate" placeholder="AB 1234">
-                            </div>
-                        </div>
-
-                        <div class="note-hint">司機姓名同車牌最少填一樣。填咗司機會自動帶出電話同類型。</div>
-
-                        <div class="note-line-3">
-                            <div class="input-group">
-                                <label>備註事情</label>
-                                <input type="text" id="noteText" placeholder="放假 / 優先排更 / 車輛維修" required>
-                            </div>
-                            <button type="submit" id="addNoteBtn" class="btn btn-primary" style="padding: 9px 16px; white-space: nowrap;">加入備註</button>
-                            <button type="button" id="noteCancelBtn" class="btn btn-outline" style="display: none; padding: 9px 16px; white-space: nowrap;">取消修改</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="notes-filter-bar">
-                    <div class="filter-group">
-                        <span>日期：</span>
-                        <input type="date" id="searchNoteStart" title="開始日期搜尋">
-                        <span>至</span>
-                        <input type="date" id="searchNoteEnd" title="結束日期搜尋">
                     </div>
-                    <div class="filter-group">
-                        <span>類型：</span>
-                        <select id="searchNoteType">
-                            <option value="">全部</option>
-                            <option value="正更">正更</option>
-                            <option value="替更">替更</option>
-                        </select>
+                    <div class="record-line-note input-group">
+                        <label>備註 <span class="opt">（選填）</span></label>
+                        <input type="text" id="recordNote" placeholder="例：只做早更 / 逢紅日休息 / 唔接機場" autocomplete="off">
                     </div>
-                    <div class="filter-group">
-                        <span>更別：</span>
-                        <select id="searchNoteShift">
-                            <option value="">全部</option>
-                            <option value="morning">早</option>
-                            <option value="night">夜</option>
-                            <option value="special">特</option>
-                        </select>
+                    <div class="record-line-2 input-group">
+                        <label>逢星期幾返工 <span class="opt">（選填，可揀多日）</span></label>
+                        <div id="weekdayButtons" class="weekday-selector"></div>
                     </div>
-                    <button type="button" id="clearNoteSearchBtn" class="btn-clear">清除搜尋</button>
-                </div>
-
-                <div id="notesList" class="records-list">
-                    <div class="empty-message">載入中...</div>
-                </div>
-            </div>
-
-            <!-- 分頁 3：司機資料 -->
-            <div id="panelDrivers" style="display: none;">
-                <div class="form-card">
-                    <h3 id="driverTitle">新增司機資料</h3>
-                    <form id="driverForm">
-                        <div class="form-grid">
-                            <div class="input-group">
-                                <label>司機姓名</label>
-                                <input type="text" id="dName" placeholder="陳大文" required>
-                            </div>
-                            <div class="input-group">
-                                <label>電話號碼</label>
-                                <input type="tel" id="dPhone" placeholder="91234567" required>
-                            </div>
-                            <div class="input-group">
-                                <label>類型 (正更 / 替更)</label>
-                                <div id="dTypeButtons" class="d-type-selector"></div>
-                            </div>
-                            <div class="input-group">
-                                <label>更別 (早 / 夜 / 特)</label>
-                                <div id="dShiftButtons" class="d-shift-selector"></div>
-                            </div>
-                            <div class="input-group" style="grid-column: 1 / -1;">
-                                <label>車牌 <span class="opt">（選填）</span></label>
-                                <input type="text" id="dPlate" placeholder="AB 1234">
-                            </div>
+                    <div class="record-line-3">
+                        <div class="input-group">
+                            <label>更別</label>
+                            <div id="shiftButtons" class="shift-selector"></div>
                         </div>
                         <div class="record-form-actions">
-                            <button type="submit" id="addDriverBtn" class="btn btn-primary">加入資料</button>
-                            <button type="button" id="driverCancelBtn" class="btn btn-outline" style="display: none;">取消修改</button>
+                            <button type="submit" id="saveBtn" class="btn btn-primary">加入新增</button>
+                            <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display:none;">取消修改</button>
                         </div>
-                    </form>
+                    </div>
                 </div>
-
-                <div class="records-header">
-                    <h2>司機資料庫</h2>
-                    <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名/電話/車牌...">
-                </div>
-                <div id="driversList" class="driver-list">
-                    <div class="empty-message">載入中...</div>
-                </div>
-            </div>
-
-            <footer>
-                手動儲存模式 · 改動暫存本機，撳右上角「儲存」才寫上雲端 · 備註結束日期後 6 日自動刪除
-            </footer>
+            </form>
         </div>
+
+        <div class="records-header"><h2>長期備註紀錄</h2></div>
+
+        <div class="filter-bar">
+            <div class="filter-item"><input type="text" id="searchRecordText" placeholder="🔍 搜尋人名/電話" style="width:130px;"></div>
+            <div class="filter-item">
+                <select id="searchRecordType">
+                    <option value="">全部類型</option>
+                    <option value="正更">正更</option>
+                    <option value="替更">替更</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <select id="searchRecordShift">
+                    <option value="">全部更別</option>
+                    <option value="morning">早</option>
+                    <option value="night">夜</option>
+                    <option value="special">特</option>
+                </select>
+            </div>
+            <details class="wd-dropdown">
+                <summary>📅 星期幾</summary>
+                <div class="wd-dropdown-content">
+                    <label><input type="checkbox" class="record-filter-wd" value="mon"> 一</label>
+                    <label><input type="checkbox" class="record-filter-wd" value="tue"> 二</label>
+                    <label><input type="checkbox" class="record-filter-wd" value="wed"> 三</label>
+                    <label><input type="checkbox" class="record-filter-wd" value="thu"> 四</label>
+                    <label><input type="checkbox" class="record-filter-wd" value="fri"> 五</label>
+                    <label><input type="checkbox" class="record-filter-wd" value="sat"> 六</label>
+                    <label><input type="checkbox" class="record-filter-wd" value="sun"> 日</label>
+                </div>
+            </details>
+            <button type="button" id="clearRecordSearchBtn" class="btn-clear">清除</button>
+        </div>
+
+        <div id="recordsList" class="records-list"><div class="empty-message">載入中...</div></div>
     </div>
+
+    <div id="panelNotes" style="display:none;">
+        <div class="note-form-card form-card">
+            <h3 id="noteTitle">新增短期備註</h3>
+            <form id="noteForm">
+                <div class="note-line-1">
+                    <div class="input-group">
+                        <label>開始日期</label>
+                        <input type="date" id="noteStart" required>
+                    </div>
+                    <div class="input-group">
+                        <label>結束日期</label>
+                        <input type="date" id="noteEnd" required>
+                    </div>
+                </div>
+                <div class="input-group" style="margin-bottom:8px;">
+                    <label>指定星期幾 <span class="opt">（選填）</span></label>
+                    <div id="noteWeekdayButtons" class="weekday-selector"></div>
+                </div>
+                <div class="note-line-2">
+                    <div class="input-group">
+                        <label>司機姓名 <span class="opt">（選填）</span></label>
+                        <input type="text" id="noteDriver" placeholder="輸入並撳選司機" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>車牌 <span class="opt">（選填）</span></label>
+                        <input type="text" id="notePlate" placeholder="AB 1234">
+                    </div>
+                </div>
+                <div class="note-hint">司機姓名同車牌最少填一樣。填咗司機會自動帶出電話同類型。</div>
+                <div class="note-line-3">
+                    <div class="input-group">
+                        <label>備註事情</label>
+                        <input type="text" id="noteText" placeholder="放假 / 優先排更 / 車輛維修" required>
+                    </div>
+                    <button type="submit" id="addNoteBtn" class="btn btn-primary" style="padding:9px 16px;white-space:nowrap;">加入短期備註</button>
+                    <button type="button" id="noteCancelBtn" class="btn btn-outline" style="display:none;padding:9px 16px;white-space:nowrap;">取消修改</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="notes-filter-bar">
+            <div class="filter-group">
+                <span>日期：</span>
+                <input type="date" id="searchNoteStart" title="開始日期搜尋">
+                <span>至</span>
+                <input type="date" id="searchNoteEnd" title="結束日期搜尋">
+            </div>
+            <div class="filter-group">
+                <span>類型：</span>
+                <select id="searchNoteType">
+                    <option value="">全部</option>
+                    <option value="正更">正更</option>
+                    <option value="替更">替更</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <span>更別：</span>
+                <select id="searchNoteShift">
+                    <option value="">全部</option>
+                    <option value="morning">早</option>
+                    <option value="night">夜</option>
+                    <option value="special">特</option>
+                </select>
+            </div>
+            <button type="button" id="clearNoteSearchBtn" class="btn-clear">清除搜尋</button>
+        </div>
+
+        <div id="notesList" class="records-list"><div class="empty-message">載入中...</div></div>
+    </div>
+
+    <div id="panelDrivers" style="display:none;">
+        <div class="form-card">
+            <h3 id="driverTitle">新增司機資料</h3>
+            <form id="driverForm">
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label>司機姓名</label>
+                        <input type="text" id="dName" placeholder="陳大文" required>
+                    </div>
+                    <div class="input-group">
+                        <label>電話號碼</label>
+                        <input type="tel" id="dPhone" placeholder="91234567" required>
+                    </div>
+                    <div class="input-group">
+                        <label>類型 (正更 / 替更)</label>
+                        <div id="dTypeButtons" class="d-type-selector"></div>
+                    </div>
+                    <div class="input-group">
+                        <label>更別 (早 / 夜 / 特)</label>
+                        <div id="dShiftButtons" class="d-shift-selector"></div>
+                    </div>
+                    <div class="input-group" style="grid-column:1/-1;">
+                        <label>車牌 <span class="opt">（選填）</span></label>
+                        <input type="text" id="dPlate" placeholder="AB 1234">
+                    </div>
+                </div>
+                <div class="record-form-actions">
+                    <button type="submit" id="addDriverBtn" class="btn btn-primary">加入資料</button>
+                    <button type="button" id="driverCancelBtn" class="btn btn-outline" style="display:none;">取消修改</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="records-header">
+            <h2>司機資料庫</h2>
+            <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名/電話/車牌...">
+        </div>
+        <div id="driversList" class="driver-list"><div class="empty-message">載入中...</div></div>
+    </div>
+
+    <footer>手動儲存模式 · 改動暫存本機，撳右上角「儲存」才寫上雲端 · 短期備註結束日期後 6 日自動刪除</footer>
+</div>
+</div>
 </body>
 </html>
