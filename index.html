@@ -12,7 +12,7 @@ import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, updateDoc
 /* 👇 想改登入密碼，只需改下面引號裡面嘅數字 */
 const ACCESS_PASSWORD = '5115';
 const UNLOCK_KEY = 'taxiRecordUnlocked';
-const APP_VERSION = 'V3.5';
+const APP_VERSION = 'V3.6';
 
 const firebaseConfig = {
     apiKey: "AIzaSyB_bNvEgF5-4m8czZSv15ZTY8-7_7LYQPg",
@@ -39,6 +39,7 @@ const lockBtn = document.getElementById('lockBtn');
 const lockError = document.getElementById('lockError');
 const appRoot = document.getElementById('appRoot');
 const lockNowBtn = document.getElementById('lockNowBtn');
+const toastBox = document.getElementById('toastBox');
 const tabRecords = document.getElementById('tabRecords');
 const tabNotes = document.getElementById('tabNotes');
 const tabDrivers = document.getElementById('tabDrivers');
@@ -50,6 +51,9 @@ const versionEl = document.getElementById('version');
 const cloudSaveBtn = document.getElementById('cloudSaveBtn');
 const saveStatusMsg = document.getElementById('saveStatusMsg');
 const searchDriverInput = document.getElementById('searchDriver');
+const searchDriverType = document.getElementById('searchDriverType');
+const searchDriverShift = document.getElementById('searchDriverShift');
+const clearDriverSearchBtn = document.getElementById('clearDriverSearchBtn');
 const searchRecordText = document.getElementById('searchRecordText');
 const searchRecordType = document.getElementById('searchRecordType');
 const searchRecordShift = document.getElementById('searchRecordShift');
@@ -62,7 +66,8 @@ const searchNoteShift = document.getElementById('searchNoteShift');
 const clearNoteSearchBtn = document.getElementById('clearNoteSearchBtn');
 
 let currentRecords = [], currentNotes = [], currentDrivers = [];
-let driverSearchQuery = '', recordSearchQuery = '', recordSearchType = '', recordSearchShift = '';
+let driverSearchQuery = '', driverFilterType = '', driverFilterShift = '';
+let recordSearchQuery = '', recordSearchType = '', recordSearchShift = '';
 let recordSearchWeekdays = new Set();
 let noteSearchStart = '', noteSearchEnd = '', noteSearchType = '', noteSearchShift = '';
 let pendingChanges = [], pendingNoteChanges = [], pendingDriverChanges = [];
@@ -122,6 +127,15 @@ function toMillis(v) {
     return isNaN(t) ? 0 : t;
 }
 function pendingTotal() { return pendingChanges.length + pendingNoteChanges.length + pendingDriverChanges.length; }
+
+let toastTimer = null;
+function showToast(msg, warn) {
+    toastBox.textContent = msg;
+    toastBox.classList.toggle('warn', !!warn);
+    toastBox.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastBox.classList.remove('show'); }, 2000);
+}
 
 function setStatus(type) {
     const map = {
@@ -188,7 +202,11 @@ function switchTab(tab) {
         tabDrivers.classList.add('active');
         panelDrivers.style.display = 'block';
         searchDriverInput.value = '';
+        searchDriverType.value = '';
+        searchDriverShift.value = '';
         driverSearchQuery = '';
+        driverFilterType = '';
+        driverFilterShift = '';
         renderDrivers();
     }
 }
@@ -378,8 +396,8 @@ function renderRecords() {
 function renderNotes() {
     const list = document.getElementById('notesList');
     let filteredNotes = currentNotes;
-    if (noteSearchStart) filteredNotes = filteredNotes.filter(n => n.endDate && n.endDate >= noteSearchStart);
-    if (noteSearchEnd) filteredNotes = filteredNotes.filter(n => n.startDate && n.startDate <= noteSearchEnd);
+    if (noteSearchStart) filteredNotes = filteredNotes.filter(n => (n.endDate || n.startDate) && (n.endDate || n.startDate) >= noteSearchStart);
+    if (noteSearchEnd) filteredNotes = filteredNotes.filter(n => (n.startDate || n.endDate) && (n.startDate || n.endDate) <= noteSearchEnd);
     if (noteSearchType) {
         filteredNotes = filteredNotes.filter(n => {
             const md = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
@@ -420,7 +438,13 @@ function renderNotes() {
         return toMillis(b.createdAt) - toMillis(a.createdAt);
     });
     list.innerHTML = filteredNotes.map(n => {
-        const dates = (n.startDate && n.endDate) ? `${n.startDate} 至 ${n.endDate}` : '未設定';
+        const s = n.startDate || '';
+        const e = n.endDate || '';
+        let dates;
+        if (s && e) dates = (s === e) ? s : `${s} 至 ${e}`;
+        else if (s) dates = s;
+        else if (e) dates = e;
+        else dates = '未設定';
         const matchedDriver = n.driver ? currentDrivers.find(d => d.name === n.driver) : null;
         let displayType = n.type || '', displayShift = n.shift || '';
         if (matchedDriver) {
@@ -463,7 +487,7 @@ function renderNotes() {
                     </div>
                 </div>
                 <div class="note-row-footer">
-                    <span class="note-expire">自動刪除：${getExpireHint(n.endDate)}</span>
+                    <span class="note-expire">自動刪除：${getExpireHint(e || s)}</span>
                     <div class="record-actions">
                         <button class="edit-btn" onclick="enterNoteEditMode('${n.id}')">修改</button>
                         <button class="delete-btn" onclick="queueDeleteNote('${n.id}')">刪除</button>
@@ -478,20 +502,23 @@ function renderDrivers() {
     let filtered = currentDrivers.slice();
     if (driverSearchQuery) {
         const q = driverSearchQuery.toLowerCase();
-        filtered = currentDrivers.filter(d =>
+        filtered = filtered.filter(d =>
             (d.name || '').toLowerCase().includes(q) ||
             (d.phone || '').includes(q) ||
             (d.plate || '').toLowerCase().includes(q));
     }
+    if (driverFilterType) filtered = filtered.filter(d => d.type === driverFilterType);
+    if (driverFilterShift) filtered = filtered.filter(d => d.shift === driverFilterShift);
     if (filtered.length === 0) {
-        list.innerHTML = `<div class="empty-message">${driverSearchQuery ? '搵唔到符合嘅司機' : '暫時未有司機資料'}</div>`;
+        const hasFilter = driverSearchQuery || driverFilterType || driverFilterShift;
+        list.innerHTML = `<div class="empty-message">${hasFilter ? '搵唔到符合嘅司機' : '暫時未有司機資料'}</div>`;
         return;
     }
     filtered.sort((a, b) => {
-        const pA = normPhone(a.phone), pB = normPhone(b.phone);
-        if (!pA && pB) return 1;
-        if (pA && !pB) return -1;
-        return pA.localeCompare(pB);
+        const ta = a.type === '正更' ? 0 : 1;
+        const tb = b.type === '正更' ? 0 : 1;
+        if (ta !== tb) return ta - tb;
+        return (a.name || '').localeCompare(b.name || '', 'zh-HK');
     });
     list.innerHTML = filtered.map(d => {
         const typeLabel = d.type === '正更' ? '<span class="type-tag regular">正更</span>' : '<span class="type-tag substitute">替更</span>';
@@ -539,11 +566,13 @@ window.toggleStar = (id) => {
 
 window.queueDelete = (id) => {
     if (!confirm('確定刪除？(需撳儲存)')) return;
+    const target = currentRecords.find(r => r.id === id);
+    const label = target ? (target.name || '') : '';
     const pAdd = pendingChanges.findIndex(c => c.type === 'add' && c.tempId === id);
     if (pAdd !== -1) pendingChanges.splice(pAdd, 1);
     else {
         pendingChanges = pendingChanges.filter(c => !(c.type === 'update' && c.id === id));
-        pendingChanges.push({ type: 'delete', id });
+        pendingChanges.push({ type: 'delete', id, label });
     }
     currentRecords = currentRecords.filter(r => r.id !== id);
     renderRecords();
@@ -585,11 +614,13 @@ function exitEditMode() {
 
 window.queueDeleteNote = (id) => {
     if (!confirm('確定刪除？(需撳儲存)')) return;
+    const target = currentNotes.find(n => n.id === id);
+    const label = target ? (target.driver || target.plate || '') : '';
     const pAdd = pendingNoteChanges.findIndex(c => c.type === 'add' && c.tempId === id);
     if (pAdd !== -1) pendingNoteChanges.splice(pAdd, 1);
     else {
         pendingNoteChanges = pendingNoteChanges.filter(c => !(c.type === 'update' && c.id === id));
-        pendingNoteChanges.push({ type: 'delete', id });
+        pendingNoteChanges.push({ type: 'delete', id, label });
     }
     currentNotes = currentNotes.filter(n => n.id !== id);
     renderNotes();
@@ -602,7 +633,7 @@ window.enterNoteEditMode = (id) => {
     if (!n) return;
     editingNoteId = id;
     noteStart.value = n.startDate || '';
-    noteEnd.value = n.endDate || '';
+    noteEnd.value = (n.endDate && n.endDate !== n.startDate) ? n.endDate : '';
     noteDriver.value = n.driver || '';
     notePlate.value = n.plate || '';
     noteText.value = n.text || '';
@@ -628,11 +659,13 @@ function exitNoteEditMode() {
 
 window.queueDeleteDriver = (id) => {
     if (!confirm('確定刪除？(需撳儲存)')) return;
+    const target = currentDrivers.find(d => d.id === id);
+    const label = target ? (target.name || '') : '';
     const pAdd = pendingDriverChanges.findIndex(c => c.type === 'add' && c.tempId === id);
     if (pAdd !== -1) pendingDriverChanges.splice(pAdd, 1);
     else {
         pendingDriverChanges = pendingDriverChanges.filter(c => !(c.type === 'update' && c.id === id));
-        pendingDriverChanges.push({ type: 'delete', id });
+        pendingDriverChanges.push({ type: 'delete', id, label });
     }
     currentDrivers = currentDrivers.filter(d => d.id !== id);
     renderDrivers();
@@ -784,6 +817,18 @@ function wireEvents() {
     setupNoteAutocomplete();
 
     searchDriverInput.addEventListener('input', (e) => { driverSearchQuery = e.target.value.trim(); renderDrivers(); });
+    searchDriverType.addEventListener('change', (e) => { driverFilterType = e.target.value; renderDrivers(); });
+    searchDriverShift.addEventListener('change', (e) => { driverFilterShift = e.target.value; renderDrivers(); });
+    clearDriverSearchBtn.addEventListener('click', () => {
+        searchDriverInput.value = '';
+        searchDriverType.value = '';
+        searchDriverShift.value = '';
+        driverSearchQuery = '';
+        driverFilterType = '';
+        driverFilterShift = '';
+        renderDrivers();
+    });
+
     searchRecordText.addEventListener('input', (e) => { recordSearchQuery = e.target.value.trim(); renderRecords(); });
     searchRecordType.addEventListener('change', (e) => { recordSearchType = e.target.value; renderRecords(); });
     searchRecordShift.addEventListener('change', (e) => { recordSearchShift = e.target.value; renderRecords(); });
@@ -865,18 +910,19 @@ function wireEvents() {
         e.preventDefault();
         const inputDriver = noteDriver.value.trim();
         const inputPlate = notePlate.value.trim().toUpperCase();
-        if (!noteStart.value || !noteEnd.value || !noteText.value.trim()) {
-            alert('請填寫開始日期、結束日期同備註事情');
+        if (!noteStart.value || !noteText.value.trim()) {
+            alert('請填寫開始日期同備註事情');
             return;
         }
         if (!inputDriver && !inputPlate) {
             alert('請輸入司機姓名，或者輸入車牌（最少填一樣）');
             return;
         }
-        if (noteEnd.value < noteStart.value) {
+        if (noteEnd.value && noteEnd.value < noteStart.value) {
             alert('結束日期唔可以早過開始日期。');
             return;
         }
+        const endVal = noteEnd.value || noteStart.value;
         let noteType = '', noteShift = '', notePhoneVal = '';
         if (inputDriver) {
             const matchedDriver = currentDrivers.find(d => d.name === inputDriver);
@@ -888,7 +934,7 @@ function wireEvents() {
         }
         const data = {
             startDate: noteStart.value,
-            endDate: noteEnd.value,
+            endDate: endVal,
             driver: inputDriver,
             plate: inputPlate,
             phone: notePhoneVal,
@@ -992,8 +1038,24 @@ async function handleSave() {
 
     const failedDrivers = [], failedRecords = [], failedNotes = [];
     const idRemap = {};
+    const savedItems = [];
     let sCount = 0, fCount = 0, fMsg = '';
     const handleError = (e) => { fCount++; fMsg = (e && e.message) ? e.message : String(e); };
+
+    const opName = (t) => t === 'add' ? '新增' : (t === 'update' ? '修改' : '刪除');
+    const lookupName = (kind, id) => {
+        const arr = kind === 'driver' ? currentDrivers : (kind === 'record' ? currentRecords : currentNotes);
+        const f = arr.find(x => x.id === id);
+        if (!f) return '';
+        return kind === 'note' ? (f.driver || f.plate || '') : (f.name || '');
+    };
+    const labelFor = (kind, c) => {
+        if (c.label) return c.label;
+        const d = c.data || {};
+        const direct = kind === 'note' ? (d.driver || d.plate || '') : (d.name || '');
+        if (direct) return direct;
+        return lookupName(kind, c.id);
+    };
 
     for (const c of pendingDriverChanges) {
         try {
@@ -1006,6 +1068,7 @@ async function handleSave() {
                 await deleteDoc(doc(db, "driversData", c.id));
             }
             sCount++;
+            savedItems.push({ kind: 'driver', op: opName(c.type), name: labelFor('driver', c) });
         } catch (e) {
             if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') sCount++;
             else { handleError(e); failedDrivers.push(c); }
@@ -1023,6 +1086,7 @@ async function handleSave() {
                 await deleteDoc(doc(db, "shiftRecords", c.id));
             }
             sCount++;
+            savedItems.push({ kind: 'record', op: opName(c.type), name: labelFor('record', c) });
         } catch (e) {
             if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') sCount++;
             else { handleError(e); failedRecords.push(c); }
@@ -1040,6 +1104,7 @@ async function handleSave() {
                 await deleteDoc(doc(db, "shiftNotes", c.id));
             }
             sCount++;
+            savedItems.push({ kind: 'note', op: opName(c.type), name: labelFor('note', c) });
         } catch (e) {
             if ((c.type === 'update' || c.type === 'delete') && e && e.code === 'not-found') sCount++;
             else { handleError(e); failedNotes.push(c); }
@@ -1074,14 +1139,49 @@ async function handleSave() {
     cloudSaveBtn.disabled = false;
     updatePendingIndicator();
 
-    if (fCount === 0) showSaveMsg(`儲存成功 (${sCount} 項)`, true);
-    else {
+    const summary = buildSaveSummary(savedItems);
+    if (fCount === 0) {
+        if (summary) showToast('✅ ' + summary, false);
+        else showToast('✅ 已儲存 ' + sCount + ' 項', false);
+    } else {
+        const tail = '失敗 ' + fCount + ' 項';
+        showToast('⚠️ ' + (summary || ('成功 ' + sCount + ' 項')) + ' · ' + tail, true);
         showSaveMsg(`有 ${fCount} 項儲存失敗，其餘已成功`, false);
         console.error('儲存失敗原因：', fMsg);
     }
+
     renderRecords();
     renderNotes();
     renderDrivers();
+}
+
+function buildSaveSummary(items) {
+    if (!items || items.length === 0) return '';
+    const KIND_LABEL = { driver: '司機', record: '長期備註', note: '短期備註' };
+    const OP_ORDER = ['新增', '修改', '刪除'];
+    const groups = new Map();
+    items.forEach(it => {
+        const key = it.op + '|' + it.kind;
+        if (!groups.has(key)) groups.set(key, []);
+        if (it.name) groups.get(key).push(it.name);
+    });
+    const keys = Array.from(groups.keys()).sort((a, b) => {
+        const oa = OP_ORDER.indexOf(a.split('|')[0]);
+        const ob = OP_ORDER.indexOf(b.split('|')[0]);
+        if (oa !== ob) return oa - ob;
+        return a.localeCompare(b);
+    });
+    const parts = [];
+    keys.forEach(k => {
+        const seg = k.split('|');
+        const op = seg[0], kind = seg[1];
+        const names = groups.get(k);
+        let nameStr = '';
+        if (names.length > 3) nameStr = names.slice(0, 3).join('、') + ' 等 ' + names.length + ' 位';
+        else if (names.length > 0) nameStr = names.join('、');
+        parts.push(op + KIND_LABEL[kind] + (nameStr ? '：' + nameStr : ''));
+    });
+    return parts.join(' · ');
 }
 
 function startApp() {
@@ -1113,6 +1213,10 @@ body{background:#f3f4f6;padding:max(10px,env(safe-area-inset-left)) max(10px,env
 .lock-btn{margin-top:14px;width:100%;padding:12px;border-radius:8px;border:none;background:#1f2937;color:#fff;font-size:.95rem;font-weight:600;cursor:pointer;touch-action:manipulation}
 .lock-btn:hover{background:#111827}
 .lock-error{display:none;margin-top:12px;font-size:.78rem;font-weight:600;color:#b91c1c;background:#fee2e2;padding:7px 10px;border-radius:6px}
+
+.toast{position:fixed;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:min(80vw,320px);background:#065f46;color:#fff;padding:10px 13px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.22);font-size:.78rem;font-weight:600;line-height:1.5;z-index:9998;opacity:0;transform:translateY(12px);transition:opacity .18s,transform .18s;pointer-events:none;word-break:break-word}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.warn{background:#b45309}
 
 .container{max-width:800px;width:100%;background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.06);padding:clamp(16px,4vw,24px) clamp(12px,3.5vw,20px);height:fit-content}
 .header-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
@@ -1296,12 +1400,14 @@ footer{margin-top:18px;font-size:.72rem;color:#9ca3af;text-align:center;border-t
     </div>
 </div>
 
+<div id="toastBox" class="toast"></div>
+
 <div id="appRoot" style="display:none;">
 <div class="container">
     <div class="header-row">
         <div class="title-wrap">
             <h1>的士編更系統</h1>
-            <span class="version" id="version">V3.5</span>
+            <span class="version" id="version">V3.6</span>
         </div>
         <div class="right-top">
             <span id="connectionStatus" class="conn-status status-connecting">連接中…</span>
@@ -1408,8 +1514,8 @@ footer{margin-top:18px;font-size:.72rem;color:#9ca3af;text-align:center;border-t
                         <input type="date" id="noteStart" required>
                     </div>
                     <div class="input-group">
-                        <label>結束日期</label>
-                        <input type="date" id="noteEnd" required>
+                        <label>結束日期 <span class="opt">（選填，唔填＝只計一日）</span></label>
+                        <input type="date" id="noteEnd">
                     </div>
                 </div>
                 <div class="input-group" style="margin-bottom:8px;">
@@ -1505,6 +1611,26 @@ footer{margin-top:18px;font-size:.72rem;color:#9ca3af;text-align:center;border-t
             <h2>司機資料庫</h2>
             <input type="text" id="searchDriver" class="search-input" placeholder="🔍 搜尋名/電話/車牌...">
         </div>
+
+        <div class="filter-bar">
+            <div class="filter-item">
+                <select id="searchDriverType">
+                    <option value="">全部類型</option>
+                    <option value="正更">正更</option>
+                    <option value="替更">替更</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <select id="searchDriverShift">
+                    <option value="">全部更別</option>
+                    <option value="morning">早</option>
+                    <option value="night">夜</option>
+                    <option value="special">特</option>
+                </select>
+            </div>
+            <button type="button" id="clearDriverSearchBtn" class="btn-clear">清除</button>
+        </div>
+
         <div id="driversList" class="driver-list"><div class="empty-message">載入中...</div></div>
     </div>
 
